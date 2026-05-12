@@ -75,7 +75,7 @@ while cap.isOpened():
                     1, (0, 255, 0), 2, cv2.LINE_AA)
 
     # Exibir o vídeo
-    cv2.imshow('Detecção de LIBRAS - MediaPipe', frame)
+    cv2.imshow('LIBRAS - MediaPipe', frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
