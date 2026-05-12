@@ -92,7 +92,7 @@ def process_frame(image: np.ndarray) -> np.ndarray:
 def main():
     iface = gr.Interface(
         fn=process_frame,
-        inputs=gr.Image(source='webcam', type='numpy'),
+        inputs=gr.Image(sources=['webcam'], type='numpy'),
         outputs='image',
         live=True,
         title='Detecção de LIBRAS - MediaPipe',
