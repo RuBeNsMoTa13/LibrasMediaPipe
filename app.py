@@ -4,7 +4,10 @@ from mediapipe.tasks import python  # BaseOptions do Tasks
 from mediapipe.tasks.python import vision  # GestureRecognizer
 import numpy as np  # arrays e manipulacao de imagem
 import gradio as gr  # UI
-from fastrtc import WebRTC  # WebRTC no Gradio
+try:
+    from fastrtc import WebRTC  # WebRTC no Gradio
+except ImportError:
+    from fastrtc.webrtc import WebRTC  # fallback para versoes antigas
 import time  # tempo e FPS
 import sys  # stdout
 # OTIMIZAÇÕES CRÍTICAS PARA FPS:
