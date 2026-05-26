@@ -2,6 +2,7 @@ import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+import threading
 
 # --- CONFIGURAÇÕES ---
 MODEL_PATH = 'gesture_recognizer.task' # Certifique-se que o nome está correto
@@ -9,8 +10,37 @@ recognized_text = ""  # texto acumulado com letras
 last_seen_token = None  # ultimo token visto
 last_legend_update_time = 0.0  # instante do ultimo sinal consolidado
 LEGEND_CLEAR_SECONDS = 3 # limpa a legenda apos esse tempo sem novos sinais
-LETTER_DELAY_SECONDS = 1  # intervalo minimo entre letras
+LETTER_DELAY_SECONDS = 0.7  # intervalo minimo entre letras
 last_letter_commit_time = 0.0  # instante da ultima letra adicionada
+CONFIDENCE_THRESHOLD = 0.75  # só registrar contexto se a inferência >= 75%
+
+# TTS (texto-para-fala) opcional - usa pyttsx3 se instalado
+USE_TTS = False
+try:
+    import pyttsx3
+    USE_TTS = True
+except Exception:
+    USE_TTS = False
+
+TTS_READ_INTERVAL = 3.0  # segundos entre leituras do texto acumulado
+last_tts_time = 0.0
+last_spoken_text = ""
+
+def speak_async(text: str):
+    """Executa TTS de forma assíncrona para não bloquear o loop principal."""
+    if not USE_TTS or not text:
+        return
+
+    def worker(tts_text: str):
+        try:
+            engine = pyttsx3.init()
+            engine.say(tts_text)
+            engine.runAndWait()
+        except Exception as e:
+            print("Aviso: falha no TTS:", e)
+
+    threading.Thread(target=worker, args=(text,), daemon=True).start()
+# (LETTER_DELAY_SECONDS e last_letter_commit_time já definidos acima)
 
 # Inicializar o reconhecedor de gestos
 base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
@@ -109,17 +139,27 @@ while cap.isOpened():
         label = top_gesture.category_name
         score = top_gesture.score
 
-        recognized_text, last_seen_token, last_letter_commit_time, text_updated = update_recognized_text(
-            label,
-            recognized_text,
-            last_seen_token,
-            now_seconds,
-            last_letter_commit_time,
-        )
-        if text_updated:
-            last_legend_update_time = now_seconds
+        # Atualiza contexto apenas se confiança suficiente
+        if score >= CONFIDENCE_THRESHOLD:
+            recognized_text, last_seen_token, last_letter_commit_time, text_updated = update_recognized_text(
+                label,
+                recognized_text,
+                last_seen_token,
+                now_seconds,
+                last_letter_commit_time,
+            )
+            if text_updated:
+                last_legend_update_time = now_seconds
+        else:
+            text_updated = False
+
+        # (não falar aqui) — vamos falar somente quando a legenda expirar (inatividade)
 
     if recognized_text and last_legend_update_time and (now_seconds - last_legend_update_time) >= LEGEND_CLEAR_SECONDS:
+        # Quando houver inatividade suficiente, falar o último contexto antes de limpar
+        if USE_TTS and recognized_text and recognized_text != last_spoken_text:
+            speak_async(recognized_text)
+            last_spoken_text = recognized_text
         recognized_text = ""
         last_seen_token = None
         last_legend_update_time = 0.0
