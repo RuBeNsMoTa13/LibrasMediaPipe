@@ -49,8 +49,11 @@ try:
         running_mode=vision.RunningMode.VIDEO  # modo video (webcam)
     )
     recognizer = vision.GestureRecognizer.create_from_options(options)  # cria reconhecedor
+    print(f"Recognizer carregado com sucesso a partir de: {MODEL_PATH}")
 except Exception as e:
+    import traceback
     print(f"Aviso: não foi possível inicializar o recognizer: {e}")
+    traceback.print_exc()
     print("Verifique se 'gesture_recognizer.task' existe ou se a versão do MediaPipe suporta Tasks API.")
 
 
@@ -265,28 +268,26 @@ def main():
     print(f"Recognizer inicializado: {recognizer is not None}")
     if recognizer is None:
         print("ERRO: Recognizer não foi inicializado!")
-    with gr.Blocks(
-        title='Detecção de LIBRAS - MediaPipe',
-        css=(
-            "@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&family=Fraunces:opsz,wght@9..144,600&display=swap');"
-            ":root {--bg1: #f7f2e8; --bg2: #e7f0ff; --ink: #1e1e1e; --muted: #5a5a5a; --card: #ffffff;}"
-            "body {background: radial-gradient(1200px 600px at 20% 10%, var(--bg2), transparent),"
-            "linear-gradient(180deg, var(--bg1), #ffffff 55%); color: var(--ink);}"
-            ".gradio-container {max-width: 920px; margin: 0 auto; padding: 24px 16px 40px;}"
-            "#page-header {text-align: center; margin: 10px 0 6px; font-family: 'Fraunces', serif;"
-            "font-size: 34px; letter-spacing: 0.3px;}"
-            "#page-subtitle {text-align: center; margin: 0 0 22px; color: var(--muted);"
-            "font-family: 'Space Grotesk', sans-serif; font-size: 15px;}"
-            "#webrtc-wrap {display: flex; justify-content: center;}"
-            f"#webrtc-box {{width: min(92vw, {WEB_DISPLAY_WIDTH}px); padding: 16px; border-radius: 18px;"
-            "background: var(--card); box-shadow: 0 12px 30px rgba(28, 45, 80, 0.12);"
-            "border: 1px solid rgba(30, 30, 30, 0.06);}}"
-            "#webcam {width: 100%; position: relative; overflow: hidden;}"
-            "#webcam img, #webcam video, #webcam canvas {width: 100%; height: auto; border-radius: 12px;"
-            "position: static !important; max-width: 100% !important; object-fit: contain;}"
-            "#webcam label, .gradio-label {font-family: 'Space Grotesk', sans-serif;}"
-        )
-    ) as demo:
+    css = (
+        "@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&family=Fraunces:opsz,wght@9..144,600&display=swap');"
+        ":root {--bg1: #f7f2e8; --bg2: #e7f0ff; --ink: #1e1e1e; --muted: #5a5a5a; --card: #ffffff;}"
+        "body {background: radial-gradient(1200px 600px at 20% 10%, var(--bg2), transparent),"
+        "linear-gradient(180deg, var(--bg1), #ffffff 55%); color: var(--ink);}"
+        ".gradio-container {max-width: 920px; margin: 0 auto; padding: 24px 16px 40px;}"
+        "#page-header {text-align: center; margin: 10px 0 6px; font-family: 'Fraunces', serif;"
+        "font-size: 34px; letter-spacing: 0.3px;}"
+        "#page-subtitle {text-align: center; margin: 0 0 22px; color: var(--muted);"
+        "font-family: 'Space Grotesk', sans-serif; font-size: 15px;}"
+        "#webrtc-wrap {display: flex; justify-content: center;}"
+        f"#webrtc-box {{width: min(92vw, {WEB_DISPLAY_WIDTH}px); padding: 16px; border-radius: 18px;"
+        "background: var(--card); box-shadow: 0 12px 30px rgba(28, 45, 80, 0.12);"
+        "border: 1px solid rgba(30, 30, 30, 0.06);}}"
+        "#webcam {width: 100%; position: relative; overflow: hidden;}"
+        "#webcam img, #webcam video, #webcam canvas {width: 100%; height: auto; border-radius: 12px;"
+        "position: static !important; max-width: 100% !important; object-fit: contain;}"
+        "#webcam label, .gradio-label {font-family: 'Space Grotesk', sans-serif;}"
+    )
+    with gr.Blocks(title='Detecção de LIBRAS - MediaPipe') as demo:
         gr.Markdown("<h1 id='page-header'>Detecção de LIBRAS - MediaPipe</h1>")
         gr.Markdown("<p id='page-subtitle'>Webcam em tempo real com reconhecimento de gestos e landmarks</p>")
 
@@ -307,7 +308,7 @@ def main():
 
         input_video.stream(fn=process_frame, inputs=input_video, outputs=output_video)
 
-    demo.launch(server_name='0.0.0.0', server_port=7860)
+    demo.launch(server_name='0.0.0.0', server_port=7860, css=css, ssr_mode=False)
 
 
 if __name__ == '__main__':
