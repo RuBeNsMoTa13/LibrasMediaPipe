@@ -22,8 +22,6 @@ try:
 except Exception:
     USE_TTS = False
 
-TTS_READ_INTERVAL = 3.0  # segundos entre leituras do texto acumulado
-last_tts_time = 0.0
 last_spoken_text = ""
 
 def speak_async(text: str):
@@ -109,10 +107,10 @@ while cap.isOpened():
 
     # Desenhar os landmarks da mão
     if result.hand_landmarks:
-        h, w, _ = frame.shape
+        h, w = frame.shape[:2]
         for hand_landmarks in result.hand_landmarks:
             # Desenhar os pontos e conexões
-            for i, landmark in enumerate(hand_landmarks):
+            for landmark in hand_landmarks:
                 x = int(landmark.x * w)
                 y = int(landmark.y * h)
                 cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)
@@ -172,7 +170,8 @@ while cap.isOpened():
                 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
     # Desenhar a legenda acumulada embaixo
-    (bw, bh), _ = cv2.getTextSize(bottom_label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+    size = cv2.getTextSize(bottom_label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+    (bw, bh) = size[0]
     bottom_x = 20
     bottom_y = frame.shape[0] - 20
     cv2.rectangle(frame, (bottom_x - 4, bottom_y - bh - 6), (bottom_x + bw + 6, bottom_y + 6), (0, 0, 0), -1)
