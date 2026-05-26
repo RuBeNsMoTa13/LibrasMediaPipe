@@ -3,12 +3,8 @@ import mediapipe as mp  # MediaPipe base
 from mediapipe.tasks import python  # BaseOptions do Tasks
 from mediapipe.tasks.python import vision  # GestureRecognizer
 import numpy as np  # arrays e manipulacao de imagem
-import gradio as gr  # UI
-try:
-    from fastrtc import WebRTC  # WebRTC no Gradio
-except ImportError:
-    from fastrtc.webrtc import WebRTC  # fallback para versoes antigas
 import time  # tempo e FPS
+import gradio as gr
 import sys  # stdout
 # OTIMIZAÇÕES CRÍTICAS PARA FPS:
 # - Processar apenas 1 frame a cada N frames (major boost)
@@ -18,9 +14,13 @@ import sys  # stdout
 ## Parametros de performance/qualidade
 DOWNSCALE_WIDTH = 192  # Largura para deteccao (menor = mais rapido)
 PROCESS_EVERY_N = 3   # Processa 1 a cada N frames
-WEBRTC_DISPLAY_WIDTH = 640  # Largura visual da caixa
-WEBRTC_INPUT_IS_BGR = False  # Cor esperada do frame do WebRTC
+WEBRTC_INPUT_IS_BGR = False  # Cor esperada do frame da webcam
 WEBRTC_COLOR_FALLBACK = True  # Tenta outra ordem de cor se falhar
+WEB_DISPLAY_WIDTH = 640  # largura para exibição do componente webcam (CSS)
+LANDMARK_RADIUS = 6  # raio dos pontos da mão
+LANDMARK_THICKNESS = 3  # espessura das conexões
+OVERLAY_FONT_SCALE = 1.0  # tamanho do texto do overlay
+OVERLAY_THICKNESS = 2  # espessura do texto do overlay
 frame_count = 0  # contador total de frames
 
 last_fps_time = 0.0  # referencia para FPS
@@ -35,6 +35,7 @@ log_window_proc_time = 0.0  # tempo total de processamento
 # Cache de resultados para frames que não processamos
 cached_label = None  # ultimo label
 cached_landmarks = None  # ultimos landmarks
+last_timestamp_ms = 0  # garante timestamp crescente para o MediaPipe
 
 # Caminho do modelo (coloque `gesture_recognizer.task` aqui ou ajuste)
 MODEL_PATH = 'gesture_recognizer.task'  # arquivo do modelo
@@ -59,6 +60,13 @@ def extract_top_gesture(result) -> tuple[str, float] | None:
     if not gestures:
         return None
     first = gestures[0]
+    if hasattr(first, "category_name"):
+        score = getattr(first, "score", 0.0)
+        return first.category_name, score
+    if isinstance(first, list) and first:
+        top = first[0]
+        if hasattr(top, "category_name"):
+            return top.category_name, getattr(top, "score", 0.0)
     if hasattr(first, "categories"):
         categories = first.categories
     elif isinstance(first, list):
@@ -71,19 +79,61 @@ def extract_top_gesture(result) -> tuple[str, float] | None:
     return top.category_name, top.score
 
 
+def to_numpy_frame(image) -> np.ndarray | None:
+    """Converte a entrada do Gradio para um array numpy HWC."""
+    if image is None:
+        return None
+    if isinstance(image, tuple):
+        image = image[0]
+    elif isinstance(image, dict) and "frame" in image:
+        image = image["frame"]
+    if isinstance(image, np.ndarray):
+        return image
+    try:
+        return np.array(image)
+    except Exception:
+        return None
+
+
+def recognize_best_frame(frame_rgb: np.ndarray, timestamp_ms: int):
+    """Executa o recognizer no frame e, se ativado, tenta a ordem de cor alternativa."""
+    if recognizer is None:
+        return None
+
+    candidates = [frame_rgb]
+    if WEBRTC_COLOR_FALLBACK:
+        candidates.append(cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR))
+
+    best_result = None
+    best_score = -1.0
+
+    for candidate in candidates:
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=candidate)
+        try:
+            result = recognizer.recognize_for_video(mp_image, timestamp_ms)
+        except Exception as e:
+            print(f"Aviso: recognize_for_video falhou: {e}")
+            continue
+
+        best_gesture = extract_top_gesture(result)
+        if best_gesture and best_gesture[1] >= best_score:
+            best_result = result
+            best_score = best_gesture[1]
+        elif best_result is None:
+            best_result = result
+
+    return best_result
+
+
 def process_frame(image: np.ndarray) -> np.ndarray:
     """Recebe imagem (HWC), retorna imagem anotada no mesmo formato de entrada."""
     global last_fps_time, fps_frames
     global fps_text, frame_count, cached_label, cached_landmarks
     global last_log_time, log_window_frames, log_window_processed, log_window_frame_time, log_window_proc_time
     
+    image = to_numpy_frame(image)
     if image is None:
         return None
-
-    if isinstance(image, tuple):
-        image = image[0]
-    elif isinstance(image, dict) and "frame" in image:
-        image = image["frame"]
 
     now = time.time()  # tempo atual
     t0 = time.perf_counter()  # cronometro
@@ -104,89 +154,63 @@ def process_frame(image: np.ndarray) -> np.ndarray:
         frame_bgr = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
     h, w, _ = rgb_frame.shape  # dimensoes
     
-    label_text = cached_label  # Usa resultado anterior por padrão
-    debug_label = "Sem gesto"  # texto default
-    hand_landmarks_list = cached_landmarks  # landmarks cacheados
+    label_text = cached_label or "Sem gesto"  # Usa resultado anterior por padrão
     
     if should_process:
         t_proc_start = time.perf_counter()  # cronometro de processamento
+        log_window_processed += 1
         # Redimensionar AGRESSIVAMENTE para detecção
         small_w = DOWNSCALE_WIDTH if w > DOWNSCALE_WIDTH else w  # largura alvo
         scale = small_w / w  # escala
         small_h = max(1, int(h * scale))  # altura alvo
         small_rgb = cv2.resize(rgb_frame, (small_w, small_h), interpolation=cv2.INTER_LINEAR)  # resize
 
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=small_rgb)  # MP image
+        global last_timestamp_ms
+        timestamp = max(int(now * 1000), last_timestamp_ms + 1)
+        last_timestamp_ms = timestamp
 
-        result = None  # resultado default
-        if recognizer is not None:
-            try:
-                timestamp = int(now * 1000)
-                result = recognizer.recognize_for_video(mp_image, timestamp)
-            except Exception as e:
-                print(f"Aviso: recognize_for_video falhou: {e}")
+        result = recognize_best_frame(small_rgb, timestamp)
 
-        # Atualizar cache
+        # Atualizar cache com gesto e landmarks (se houver)
         if result:
             best = extract_top_gesture(result)
-            if WEBRTC_COLOR_FALLBACK:
-                alt_rgb = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
-                alt_small_w = DOWNSCALE_WIDTH if w > DOWNSCALE_WIDTH else w
-                alt_scale = alt_small_w / w
-                alt_small_h = max(1, int(h * alt_scale))
-                alt_small_rgb = cv2.resize(alt_rgb, (alt_small_w, alt_small_h), interpolation=cv2.INTER_LINEAR)
-                alt_mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=alt_small_rgb)
-                try:
-                    alt_result = recognizer.recognize_for_video(alt_mp_image, timestamp)
-                    alt_best = extract_top_gesture(alt_result)
-                    if alt_best and (not best or alt_best[1] > best[1]):
-                        best = alt_best
-                except Exception:
-                    pass
-
             if best:
-                label_text = f"{best[0]} ({best[1]*100:.1f}%)"
-                cached_label = label_text
-                debug_label = f"Gesto: {best[0]}"
+                cached_label = f"{best[0]} ({best[1] * 100:.1f}%)"
             else:
-                cached_label = None
-                label_text = None
-                debug_label = "Sem gesto"
-            
-            if getattr(result, 'hand_landmarks', None):
-                hand_landmarks_list = result.hand_landmarks
-                cached_landmarks = hand_landmarks_list
+                cached_label = "Sem gesto"
+
+            # Armazenar landmarks das maos (se presentes)
+            if hasattr(result, "hand_landmarks") and result.hand_landmarks:
+                cached_landmarks = result.hand_landmarks
             else:
                 cached_landmarks = None
-                hand_landmarks_list = None
         else:
+            cached_label = "Sem gesto"
             cached_landmarks = None
-            hand_landmarks_list = None
-        log_window_processed += 1  # contador de processados
-        log_window_proc_time += time.perf_counter() - t_proc_start  # tempo proc
-    
-    # RENDERIZAR frame (sempre, com dados cacheados)
-    
-    # Desenhar landmarks cacheados
-    if hand_landmarks_list:
+
+        # Atualiza métricas de processamento
+        log_window_proc_time += time.perf_counter() - t_proc_start
+
+    # Desenhar landmarks (usando cache) — evitamos desenhar quando não há maos
+    if cached_landmarks:
         connections = [
-            (0, 1), (1, 2), (2, 3), (3, 4),
-            (0, 5), (5, 6), (6, 7), (7, 8),
-            (0, 9), (9, 10), (10, 11), (11, 12),
-            (0, 13), (13, 14), (14, 15), (15, 16),
-            (0, 17), (17, 18), (18, 19), (19, 20)
+            (0, 1), (1, 2), (2, 3), (3, 4),  # Polegar
+            (0, 5), (5, 6), (6, 7), (7, 8),  # Indicador
+            (0, 9), (9, 10), (10, 11), (11, 12),  # Médio
+            (0, 13), (13, 14), (14, 15), (15, 16),  # Anelar
+            (0, 17), (17, 18), (18, 19), (19, 20)  # Mínimo
         ]
-        for hand_landmarks in hand_landmarks_list:
+        for hand_landmarks in cached_landmarks:
             for lm in hand_landmarks:
                 x = int(lm.x * w)
                 y = int(lm.y * h)
-                cv2.circle(frame_bgr, (x, y), 2, (0, 255, 0), -1)
+                cv2.circle(frame_bgr, (x, y), LANDMARK_RADIUS, (0, 255, 0), -1)
             for start, end in connections:
                 x1 = int(hand_landmarks[start].x * w)
                 y1 = int(hand_landmarks[start].y * h)
                 x2 = int(hand_landmarks[end].x * w)
                 y2 = int(hand_landmarks[end].y * h)
-                cv2.line(frame_bgr, (x1, y1), (x2, y2), (255, 0, 0), 1)
+                cv2.line(frame_bgr, (x1, y1), (x2, y2), (255, 0, 0), LANDMARK_THICKNESS)
 
     # Calcular FPS
     fps_frames += 1  # conta frames
@@ -218,16 +242,17 @@ def process_frame(image: np.ndarray) -> np.ndarray:
 
     # Desenhar FPS
     font = cv2.FONT_HERSHEY_SIMPLEX  # fonte
-    (tw, th), _ = cv2.getTextSize(fps_text, font, 0.7, 1)
-    cv2.putText(frame_bgr, fps_text, (w - 10 - tw, 10 + th), font, 0.7, (0, 255, 255), 1, cv2.LINE_AA)
+    (tw, th), _ = cv2.getTextSize(fps_text, font, OVERLAY_FONT_SCALE, OVERLAY_THICKNESS)
+    cv2.rectangle(frame_bgr, (w - 18 - tw, 10), (w - 8, 18 + th), (0, 0, 0), -1)
+    cv2.putText(frame_bgr, fps_text, (w - 14 - tw, 14 + th), font, OVERLAY_FONT_SCALE, (0, 255, 255), OVERLAY_THICKNESS, cv2.LINE_AA)
     
-    label_out = f"Sinal: {label_text}" if label_text else debug_label  # texto do gesto
-    (lw, lh), _ = cv2.getTextSize(label_out, font, 0.8, 2)
+    label_out = f"Sinal: {label_text}"  # texto do gesto
+    (lw, lh), _ = cv2.getTextSize(label_out, font, OVERLAY_FONT_SCALE, OVERLAY_THICKNESS)
     label_x = 10
-    label_y = 30
-    cv2.rectangle(frame_bgr, (label_x - 4, label_y - lh - 6), (label_x + lw + 6, label_y + 6), (0, 0, 0), -1)
-    color = (0, 255, 0) if label_text else (0, 0, 255)  # cor do texto
-    cv2.putText(frame_bgr, label_out, (label_x, label_y), font, 0.8, color, 2, cv2.LINE_AA)
+    label_y = 42
+    cv2.rectangle(frame_bgr, (label_x - 6, label_y - lh - 10), (label_x + lw + 10, label_y + 10), (0, 0, 0), -1)
+    color = (0, 255, 0) if "(" in label_text else (0, 0, 255)  # cor do texto
+    cv2.putText(frame_bgr, label_out, (label_x, label_y), font, OVERLAY_FONT_SCALE, color, OVERLAY_THICKNESS, cv2.LINE_AA)
 
     # Manter resolucao original da webcam no output
 
@@ -253,30 +278,36 @@ def main():
             "#page-subtitle {text-align: center; margin: 0 0 22px; color: var(--muted);"
             "font-family: 'Space Grotesk', sans-serif; font-size: 15px;}"
             "#webrtc-wrap {display: flex; justify-content: center;}"
-            f"#webrtc-box {{width: min(92vw, {WEBRTC_DISPLAY_WIDTH}px); padding: 16px; border-radius: 18px;"
+            f"#webrtc-box {{width: min(92vw, {WEB_DISPLAY_WIDTH}px); padding: 16px; border-radius: 18px;"
             "background: var(--card); box-shadow: 0 12px 30px rgba(28, 45, 80, 0.12);"
             "border: 1px solid rgba(30, 30, 30, 0.06);}}"
-            "#webrtc {width: 100%; position: relative; overflow: hidden;}"
-            "#webrtc video, #webrtc canvas {width: 100%; height: auto; border-radius: 12px;"
+            "#webcam {width: 100%; position: relative; overflow: hidden;}"
+            "#webcam img, #webcam video, #webcam canvas {width: 100%; height: auto; border-radius: 12px;"
             "position: static !important; max-width: 100% !important; object-fit: contain;}"
-            "#webrtc .label, #webrtc label, .gradio-label {font-family: 'Space Grotesk', sans-serif;}"
+            "#webcam label, .gradio-label {font-family: 'Space Grotesk', sans-serif;}"
         )
     ) as demo:
-        gr.Markdown("<h1 id='page-header'>Detecção de LIBRAS - MediaPipe</h1>")  # titulo
-        gr.Markdown("<p id='page-subtitle'>Webcam em tempo real com reconhecimento de gestos e landmarks</p>")  # subtitulo
-        
+        gr.Markdown("<h1 id='page-header'>Detecção de LIBRAS - MediaPipe</h1>")
+        gr.Markdown("<p id='page-subtitle'>Webcam em tempo real com reconhecimento de gestos e landmarks</p>")
+
         with gr.Row(elem_id='webrtc-wrap'):
             with gr.Column(elem_id='webrtc-box'):
-                input_video = WebRTC(
+                input_video = gr.Image(
+                    sources=['webcam'],
+                    type='numpy',
+                    streaming=True,
                     label='Webcam',
-                    mode='send-receive',
-                    modality='video',
-                    elem_id='webrtc'
-                )  # componente WebRTC
+                    elem_id='webcam'
+                )
+                output_video = gr.Image(
+                    type='numpy',
+                    label='Saída',
+                    elem_id='webcam-output'
+                )
 
-        input_video.stream(fn=process_frame, inputs=input_video, outputs=input_video)  # stream
+        input_video.stream(fn=process_frame, inputs=input_video, outputs=output_video)
 
-    demo.launch(server_name='127.0.0.1', server_port=7860)  # inicia server
+    demo.launch(server_name='0.0.0.0', server_port=7860)
 
 
 if __name__ == '__main__':
