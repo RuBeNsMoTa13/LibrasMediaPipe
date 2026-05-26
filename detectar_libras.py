@@ -8,8 +8,8 @@ MODEL_PATH = 'gesture_recognizer.task' # Certifique-se que o nome está correto
 recognized_text = ""  # texto acumulado com letras
 last_seen_token = None  # ultimo token visto
 last_legend_update_time = 0.0  # instante do ultimo sinal consolidado
-LEGEND_CLEAR_SECONDS = 1.5  # limpa a legenda apos esse tempo sem novos sinais
-LETTER_DELAY_SECONDS = 0.7  # intervalo minimo entre letras
+LEGEND_CLEAR_SECONDS = 3 # limpa a legenda apos esse tempo sem novos sinais
+LETTER_DELAY_SECONDS = 1  # intervalo minimo entre letras
 last_letter_commit_time = 0.0  # instante da ultima letra adicionada
 
 # Inicializar o reconhecedor de gestos
