@@ -15,15 +15,15 @@ Este documento registra o status de desenvolvimento do projeto de TCC em Ciênci
 
 - [x] Extração de 21 landmarks tridimensionais das mãos com Google MediaPipe.
 - [x] Treinamento do modelo `gesture_recognizer.task` com 21 classes do alfabeto estático de LIBRAS.
-- [x] Script de benchmark comparativo com Random Forest e Support Vector Machine (SVM) em [`comparar_modelos.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/comparar_modelos.py).
-- [x] Geração de métricas de avaliação (`classification_report`) e exportação da matriz de confusão em [`gerar_metricas.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/gerar_metricas.py).
-- [x] Visualização gráfica das curvas de perda e acurácia por época em [`graficos.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/graficos.py).
+- [x] Script de benchmark comparativo com Random Forest e Support Vector Machine (SVM) em [`src/evaluation/comparar_modelos.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/evaluation/comparar_modelos.py).
+- [x] Geração de métricas de avaliação (`classification_report`) e exportação da matriz de confusão em [`src/evaluation/gerar_metricas.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/evaluation/gerar_metricas.py).
+- [x] Visualização gráfica das curvas de perda e acurácia por época em [`src/evaluation/graficos.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/evaluation/graficos.py).
 - [ ] Implementar normalização espacial dos landmarks (translação relativa ao pulso $x_0, y_0, z_0$ e divisão pela escala) para aumentar invariância espacial no SVM/Random Forest.
 - [ ] Documentar a justificativa teórica para a ausência de letras dinâmicas (H, J, K, X, Z) e sugerir abordagens temporais (ex: LSTM/GRU) como trabalhos futuros.
 
 ---
 
-## 2. Aplicação Desktop Local (`detectar_libras.py`)
+## 2. Aplicação Desktop Local (`src/desktop/detectar_libras.py`)
 
 - [x] Captura de vídeo em tempo real com OpenCV.
 - [x] Filtro de limiar de confiança mínima (`CONFIDENCE_THRESHOLD = 0.75`).
@@ -33,9 +33,9 @@ Este documento registra o status de desenvolvimento do projeto de TCC em Ciênci
 
 ---
 
-## 3. Aplicação Web e Otimizações para Hugging Face Spaces (`app.py`)
+## 3. Aplicação Web e Otimizações para Hugging Face Spaces (`src/web/app.py`)
 
-- [x] Implementação de interface interativa com Gradio em [`app.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/app.py).
+- [x] Implementação de interface interativa com Gradio em [`src/web/app.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/web/app.py).
 - [x] Containerização com Docker (`Dockerfile`) para execução no Hugging Face Spaces.
 - [x] Otimizações básicas de latência: downscale de entrada (`DOWNSCALE_WIDTH = 192`) e throttling/frame-skipping (`PROCESS_EVERY_N = 3`).
 - [ ] **Melhoria de Performance no Spaces (Combate ao Lag):**
@@ -49,7 +49,9 @@ Este documento registra o status de desenvolvimento do projeto de TCC em Ciênci
 ## 4. Documentação e Monografia do TCC
 
 - [x] Criação do [`GEMINI.md`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/GEMINI.md) na raiz do projeto.
+- [x] Reorganização arquitetural do repositório em camadas funcionais (`src/`, `models/`, `data/`, `results/`).
 - [x] Criação do índice de documentação em [`docs/README.md`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/docs/README.md).
 - [x] Documento aprofundado comparando o ambiente local com o Hugging Face Spaces em [`docs/ambientes/local-vs-huggingface.md`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/docs/ambientes/local-vs-huggingface.md).
 - [ ] Elaboração do capítulo de Metodologia e Resultados comparativos (LaTeX) com base nos dados gerados por `comparar_modelos.py`.
 - [ ] Adicionar seção de análise de limitações de hardware e latência de rede na monografia.
+

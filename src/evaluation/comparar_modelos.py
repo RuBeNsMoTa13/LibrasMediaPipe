@@ -13,10 +13,13 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # --- 1. CONFIGURAÇÃO ---
-# Caminhos para as suas pastas de treino e teste
-PASTA_TREINO = os.path.join("libras", "train")
-PASTA_TESTE = os.path.join("libras", "test")
-MODELO = "gesture_recognizer.task" 
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+PASTA_TREINO = str(ROOT_DIR / "data" / "libras" / "train")
+PASTA_TESTE = str(ROOT_DIR / "data" / "libras" / "test")
+MODELO = str(ROOT_DIR / "models" / "gesture_recognizer.task")
+ 
 
 # Inicializar o MediaPipe (usando o seu próprio modelo treinado)
 base_options = python.BaseOptions(model_asset_path=MODELO)

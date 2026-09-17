@@ -17,7 +17,7 @@ Bem-vindo ao índice central da documentação técnica do projeto de TCC **Libr
    * Controle de tarefas pendentes e concluídas em visão computacional, experimentos de ML, otimizações no Hugging Face e escrita da monografia.
 
 2. **[Ambientes de Execução: Local vs. Hugging Face Spaces](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/docs/ambientes/local-vs-huggingface.md)**
-   * Análise comparativa detalhada entre o ambiente de desktop local (`detectar_libras.py`) e o ambiente em nuvem (`app.py`).
+   * Análise comparativa detalhada entre o ambiente de desktop local (`src/desktop/detectar_libras.py`) e o ambiente em nuvem (`src/web/app.py`).
    * Diagnóstico do gargalo de desempenho (*lag* e latência na nuvem), peculiaridades de áudio (TTS) e estratégias de otimização no Gradio.
 
 3. **[Diretrizes do Projeto (GEMINI.md)](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/GEMINI.md)**
@@ -27,8 +27,9 @@ Bem-vindo ao índice central da documentação técnica do projeto de TCC **Libr
 
 ## Mapa Rápido dos Componentes de Código
 
-* **Interface Web (Cloud):** [`app.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/app.py)
-* **Interface Desktop com Buffer e TTS:** [`detectar_libras.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/detectar_libras.py)
-* **Experimentos e Classificadores:** [`comparar_modelos.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/comparar_modelos.py)
-* **Matriz de Confusão e Relatório:** [`gerar_metricas.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/gerar_metricas.py)
-* **Curvas de Aprendizado (Loss / Acurácia):** [`graficos.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/graficos.py)
+* **Interface Web (Cloud):** [`src/web/app.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/web/app.py)
+* **Interface Desktop com Buffer e TTS:** [`src/desktop/detectar_libras.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/desktop/detectar_libras.py)
+* **Benchmark de Classificadores (LaTeX):** [`src/evaluation/comparar_modelos.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/evaluation/comparar_modelos.py)
+* **Matriz de Confusão e Relatório:** [`src/evaluation/gerar_metricas.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/evaluation/gerar_metricas.py)
+* **Curvas de Aprendizado (Loss / Acurácia):** [`src/evaluation/graficos.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/evaluation/graficos.py)
+

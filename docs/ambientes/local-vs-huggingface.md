@@ -23,9 +23,10 @@ Entretanto, a transição de uma arquitetura *standalone* local para uma arquite
 
 ## 2. Comparativo Estrutural dos Ambientes
 
-| Critério | Ambiente Local Desktop (`detectar_libras.py`) | Ambiente Cloud (`app.py` no Hugging Face Spaces) |
+| Critério | Ambiente Local Desktop (`src/desktop/detectar_libras.py`) | Ambiente Cloud (`src/web/app.py` no Hugging Face Spaces) |
 | :--- | :--- | :--- |
 | **Ponto de Entrada** | Script Python nativo executado no terminal. | Container Docker com interface Web via Gradio. |
+
 | **Captura de Vídeo** | Acesso direto ao dispositivo de captura (`cv2.VideoCapture(0)`). | API do navegador (`navigator.mediaDevices.getUserMedia`). |
 | **Pipeline de Imagem** | Memória RAM local $\rightarrow$ Processamento $\rightarrow$ Tela (OpenCV GUI). | Navegador $\rightarrow$ Rede $\rightarrow$ Servidor Nuvem $\rightarrow$ Rede $\rightarrow$ Navegador. |
 | **Latência por Frame** | Quase nula (15ms a 33ms por quadro $\approx$ 30 a 60 FPS). | Média a Alta (150ms a 600ms dependendo da conexão e fila do Gradio). |
@@ -65,9 +66,10 @@ Em um container Docker na nuvem:
 
 ---
 
-## 4. Otimizações Já Implementadas no `app.py`
+## 4. Otimizações Já Implementadas no `src/web/app.py`
 
-Para atenuar esses gargalos no ambiente web, as seguintes técnicas de engenharia foram inseridas em [`app.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/app.py):
+Para atenuar esses gargalos no ambiente web, as seguintes técnicas de engenharia foram inseridas em [`src/web/app.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/web/app.py):
+
 
 1. **Downscaling Agressivo para Inferência (`DOWNSCALE_WIDTH = 192`):**
    * A imagem de entrada é reduzida para apenas 192 pixels de largura antes de ser enviada ao `GestureRecognizer`. Como os landmarks da mão são geométricos, essa redução diminui o tempo de cálculo da rede neural sem perder a precisão dos pontos-chave.

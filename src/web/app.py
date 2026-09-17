@@ -5,7 +5,13 @@ from mediapipe.tasks.python import vision  # GestureRecognizer
 import numpy as np  # arrays e manipulacao de imagem
 import time  # tempo e FPS
 import gradio as gr
+from pathlib import Path
 import sys  # stdout
+
+# Caminho raiz do projeto e modelo
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+MODEL_PATH = str(ROOT_DIR / 'models' / 'gesture_recognizer.task')
+
 # OTIMIZAÇÕES CRÍTICAS PARA FPS:
 # - Processar apenas 1 frame a cada N frames (major boost)
 # - Downscale agressivo para detecção
@@ -37,8 +43,7 @@ cached_label = None  # ultimo label
 cached_landmarks = None  # ultimos landmarks
 last_timestamp_ms = 0  # garante timestamp crescente para o MediaPipe
 
-# Caminho do modelo (coloque `gesture_recognizer.task` aqui ou ajuste)
-MODEL_PATH = 'gesture_recognizer.task'  # arquivo do modelo
+
 
 # Inicializar reconhecedor (modo VIDEO para processar frames de webcam)
 recognizer = None  # instancia do recognizer

@@ -2,10 +2,13 @@ import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from pathlib import Path
 import threading
 
 # --- CONFIGURAÇÕES ---
-MODEL_PATH = 'gesture_recognizer.task' # Certifique-se que o nome está correto
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+MODEL_PATH = str(ROOT_DIR / 'models' / 'gesture_recognizer.task')
+
 recognized_text = ""  # texto acumulado com letras
 last_seen_token = None  # ultimo token visto
 last_legend_update_time = 0.0  # instante do ultimo sinal consolidado
