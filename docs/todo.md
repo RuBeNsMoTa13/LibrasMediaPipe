@@ -1,5 +1,5 @@
 <!--
-Data/Hora: 2026-09-17 14:58 (UTC-3)
+Data/Hora: 2026-09-18 11:20 (UTC-3)
 Branch: main
 Commit: 31a99a8
 Status: Atualizado
@@ -26,10 +26,14 @@ Este documento registra o status de desenvolvimento do projeto de TCC em Ciênci
 ## 2. Aplicação Desktop Local (`src/desktop/detectar_libras.py`)
 
 - [x] Captura de vídeo em tempo real com OpenCV.
-- [x] Filtro de limiar de confiança mínima (`CONFIDENCE_THRESHOLD = 0.75`).
-- [x] Buffer acumulador de caracteres (montagem de palavras) com debounce temporal (`LETTER_DELAY_SECONDS = 0.7`).
-- [x] Tratamento de tokens especiais: espaço e deleção.
-- [x] Síntese de voz assíncrona com `pyttsx3` disparada após tempo de inatividade (`LEGEND_CLEAR_SECONDS = 3`).
+- [x] Filtro de limiar de confiança mínima com ajuste dinâmico em tempo real via teclado (`CONFIDENCE_THRESHOLD = 0.50`, ajustável com `+` e `-`).
+- [x] Buffer acumulador de caracteres (montagem de palavras) com debounce temporal (`LETTER_DELAY_SECONDS = 0.7`) e reset ao retirar a mão ou neutralizar o gesto.
+- [x] Tratamento de tokens especiais e atalhos manuais de edição: espaço, deleção de caractere (`Backspace` / `D`) e limpeza de legenda (`C`).
+- [x] Feedback visual colorido no overlay (Verde para sinal acima do limiar e gravado, Laranja para sinal abaixo do limiar).
+- [x] Síntese de voz assíncrona com `pyttsx3` com controle manual via tecla `Enter` e alternância para modo automático por inatividade via tecla `V`.
+- [x] Pop-up modal de manual de atalhos interativo acionado pela tecla `H` (ou fechado com `H` / `ESC`) diretamente na janela de vídeo com pausa na detecção.
+- [x] Interface desktop responsiva com janela redimensionável (`cv2.WINDOW_NORMAL`), suporte a captura HD e novo HUD em bandejas unificadas sem sobreposição de textos.
+- [x] Tipografia moderna TrueType (`Segoe UI` / `Arial`) com suporte a caracteres acentuados da língua portuguesa e paleta de cores de alto contraste para visibilidade a distância.
 
 ---
 
