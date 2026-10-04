@@ -48,10 +48,10 @@ O projeto foi projetado com uma arquitetura dual para atender a dois propósitos
                                    /                \
         [Ambiente Local Desktop]  /                  \  [Ambiente Cloud Web]
        +-------------------------+                    +-------------------------+
-       | src/desktop/detectar_...|                    |     src/web/app.py      |
-       |  - OpenCV VideoCapture  |                    |  - Gradio Web Interface |
-       |  - Latência Zero (Local)|                    |  - Docker Container     |
-       |  - TTS Nativo (pyttsx3) |                    |  - Hugging Face Spaces  |
+       | src/desktop/detectar_...|                    |     web/index.html      |
+       |  - OpenCV VideoCapture  |                    |  - MediaPipe JS (WASM)  |
+       |  - Latência Zero (Local)|                    |  - Roda no navegador    |
+       |  - TTS Nativo (pyttsx3) |                    |  - HF Space estático    |
        |  - Buffer de Soletração |                    |  - Acesso via Navegador |
        |  - 30+ FPS direto no SO |                    |  - Sem Instalação Local |
        +-------------------------+                    +-------------------------+
@@ -63,12 +63,13 @@ O projeto foi projetado com uma arquitetura dual para atender a dois propósitos
    * **Text-to-Speech (TTS):** Síntese de voz assíncrona com `pyttsx3` conectada ao driver de áudio do sistema operacional, pronunciando a palavra soletrada após inatividade.
    * Ideal para demonstrações presenciais da banca avaliadora e alta performance.
 
-2. **Aplicação Cloud Web (`src/web/app.py`):**
-   * Interface acessível por navegador web desenvolvida com Gradio e empacotada em container Docker.
-   * Otimizações de rede: *downscaling* agressivo de entrada (`DOWNSCALE_WIDTH = 192`), *frame-skipping* (`PROCESS_EVERY_N = 3`) e *cache* de predições.
-   * Hospedado no Hugging Face Spaces para demonstração pública instantânea sem necessidade de instalar dependências.
+2. **Aplicação Web no Navegador (`web/index.html`):**
+   * Executa o mesmo `gesture_recognizer.task` direto no navegador com `@mediapipe/tasks-vision` (WebAssembly + WebGL), sem servidor de inferência: o vídeo nunca sai da máquina do usuário.
+   * Mesmos recursos da versão desktop: buffer de soletração (0,7 s entre letras), limiar de confiança ajustável e voz em pt-BR pela Web Speech API.
+   * Publicada como Space estático no Hugging Face: <https://rubensmota13-librasmediapipe.static.hf.space>.
+   * Substitui a primeira versão em Gradio/Docker (`src/web/app.py`), que lagava por enviar cada frame ao servidor e de volta (cerca de 1,5 s de atraso).
 
-> Para entender detalhadamente o impacto de latência de rede (RTT) e estratégias de mitigação no Spaces, leia o documento [docs/ambientes/local-vs-huggingface.md](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/docs/ambientes/local-vs-huggingface.md).
+> Para entender por que a versão em Gradio lagava e por que a versão no navegador funciona, leia [docs/ambientes/versao-web-navegador.md](docs/ambientes/versao-web-navegador.md). A análise original de latência está em [docs/ambientes/local-vs-huggingface.md](docs/ambientes/local-vs-huggingface.md).
 
 ---
 
@@ -89,7 +90,7 @@ O projeto foi projetado com uma arquitetura dual para atender a dois propósitos
 LibrasMediaPipe/
 ├── GEMINI.md                           # Fonte primária da verdade arquitetural
 ├── README.md                           # Documentação central do projeto
-├── Dockerfile                          # Configuração do container Docker (Hugging Face)
+├── Dockerfile                          # Container Docker da versão Gradio (legado)
 ├── requirements.txt                    # Dependências Python do projeto
 ├── .gitignore                          # Exclusões de arquivos de compilação e cache
 │
@@ -109,11 +110,14 @@ LibrasMediaPipe/
 │   │   └── matriz_de_confusao.png
 │   └── tables/                         # Relatórios tabulares
 │
+├── web/                                # Aplicação web no navegador (Space estático)
+│   └── index.html                      # MediaPipe JS + webcam + buffer + voz
+│
 ├── src/                                # Código-fonte da aplicação
 │   ├── desktop/                        # Aplicação local nativa
 │   │   └── detectar_libras.py          # OpenCV + buffer de digitação + TTS
-│   ├── web/                            # Aplicação web em nuvem
-│   │   └── app.py                      # Servidor Gradio para Hugging Face Spaces
+│   ├── web/                            # Primeira versão web (legado)
+│   │   └── app.py                      # Servidor Gradio (antigo Space Docker)
 │   └── evaluation/                     # Scripts de avaliação e benchmark
 │       ├── comparar_modelos.py         # Benchmark: Random Forest vs SVM (LaTeX)
 │       ├── gerar_metricas.py           # Relatório de classificação e matriz
@@ -171,12 +175,15 @@ python src/desktop/detectar_libras.py
 ```
 * **Controles:** Posicione a mão em frente à câmera com boa iluminação. Pressione `q` para sair.
 
-### 2. Aplicação Web Gradio (Local ou Cloud)
-Inicia o servidor web local idêntico ao ambiente do Hugging Face:
+### 2. Aplicação Web no Navegador (Local ou Cloud)
+Online: <https://rubensmota13-librasmediapipe.static.hf.space>
+
+Para rodar localmente, sirva a raiz do repositório (a câmera só abre em HTTPS ou `localhost`):
 ```powershell
-python src/web/app.py
+python -m http.server
 ```
-* Abra no navegador: [http://localhost:7860](http://localhost:7860).
+* Abra no navegador: [http://localhost:8000/web/](http://localhost:8000/web/).
+* A versão antiga em Gradio ainda pode ser executada com `python src/web/app.py` (porta 7860).
 
 ### 3. Benchmarks e Métricas para a Monografia
 
@@ -198,8 +205,8 @@ python src/web/app.py
   python src/evaluation/graficos.py
   ```
 
-### 4. Execução via Docker
-Para testar a imagem exatamente como o container é inicializado no Hugging Face:
+### 4. Execução via Docker (versão Gradio, legado)
+Para testar a imagem da primeira versão web, como o container era inicializado no Hugging Face:
 ```bash
 docker build -t libras-mediapipe .
 docker run -p 7860:7860 libras-mediapipe
@@ -226,6 +233,7 @@ As matrizes de confusão e gráficos gerados encontram-se salvos no diretório [
 Para aprofundar-se na metodologia, decisões de arquitetura e backlog do TCC, consulte a documentação dedicada na pasta `docs/`:
 
 * 📖 **[Índice de Documentação Técnica](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/docs/README.md)**
+* 🌐 **[Versão Web no Navegador: por que lagava e por que agora funciona](docs/ambientes/versao-web-navegador.md)**
 * ⚖️ **[Estudo Técnico: Ambiente Local vs. Hugging Face Spaces](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/docs/ambientes/local-vs-huggingface.md)**
 * 📋 **[Backlog Oficial e Tarefas do TCC](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/docs/todo.md)**
 * 🏛️ **[Diretrizes Arquiteturais (GEMINI.md)](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/GEMINI.md)**

@@ -20,14 +20,19 @@ Bem-vindo ao índice central da documentação técnica do projeto de TCC **Libr
    * Análise comparativa detalhada entre o ambiente de desktop local (`src/desktop/detectar_libras.py`) e o ambiente em nuvem (`src/web/app.py`).
    * Diagnóstico do gargalo de desempenho (*lag* e latência na nuvem), peculiaridades de áudio (TTS) e estratégias de otimização no Gradio.
 
-3. **[Diretrizes do Projeto (GEMINI.md)](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/GEMINI.md)**
+3. **[Versão Web no Navegador](ambientes/versao-web-navegador.md)**
+   * Como a versão web foi refeita com o MediaPipe JavaScript rodando no navegador e publicada como Space estático.
+   * Por que a versão em Gradio lagava, por que a nova funciona e os testes de acurácia (85%) e velocidade (15 FPS só com CPU).
+
+4. **[Diretrizes do Projeto (GEMINI.md)](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/GEMINI.md)**
    * Arquitetura global, pipeline de extração de landmarks e convenções de código.
 
 ---
 
 ## Mapa Rápido dos Componentes de Código
 
-* **Interface Web (Cloud):** [`src/web/app.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/web/app.py)
+* **Interface Web no Navegador (atual):** [`web/index.html`](../web/index.html)
+* **Interface Web Gradio (legado):** [`src/web/app.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/web/app.py)
 * **Interface Desktop com Buffer e TTS:** [`src/desktop/detectar_libras.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/desktop/detectar_libras.py)
 * **Benchmark de Classificadores (LaTeX):** [`src/evaluation/comparar_modelos.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/evaluation/comparar_modelos.py)
 * **Matriz de Confusão e Relatório:** [`src/evaluation/gerar_metricas.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/evaluation/gerar_metricas.py)
