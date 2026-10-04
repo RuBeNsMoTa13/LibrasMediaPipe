@@ -1,3 +1,6 @@
+import argparse
+import sys
+
 import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
@@ -9,6 +12,29 @@ import numpy as np
 # --- CONFIGURAÇÕES ---
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 MODEL_PATH = str(ROOT_DIR / 'models' / 'gesture_recognizer.task')
+
+# --- ESCOLHA DO CLASSIFICADOR ---
+# task: o gesture_recognizer.task classifica a letra (padrão)
+# snn : o MediaPipe só extrai os landmarks e a Spiking Neural Network
+#       (models/snn_libras.pt, treinada por src/evaluation/testar_snn.py) classifica
+parser = argparse.ArgumentParser(description="Reconhecimento do alfabeto manual de LIBRAS na webcam")
+parser.add_argument("--modelo", choices=["task", "snn"], default="task",
+                    help="classificador usado nas letras (padrão: task)")
+args = parser.parse_args()
+
+snn_classifier = None
+try:
+    sys.path.insert(0, str(ROOT_DIR / 'src'))
+    from snn.modelo_snn import ClassificadorSNN, CAMINHO_SNN
+    if CAMINHO_SNN.exists():
+        snn_classifier = ClassificadorSNN()
+    elif args.modelo == "snn":
+        print(f"Aviso: {CAMINHO_SNN} não existe. Rode src/evaluation/testar_snn.py para treinar a SNN.")
+except ImportError as e:
+    if args.modelo == "snn":
+        print("Aviso: não foi possível carregar a SNN (pip install torch snntorch):", e)
+
+active_model = args.modelo if snn_classifier is not None else "task"
 
 recognized_text = ""  # texto acumulado com letras
 last_seen_token = None  # ultimo token visto
@@ -118,6 +144,7 @@ def draw_help_modal(frame):
     shortcuts = [
         ("[Enter]", "Falar legenda acumulada (TTS) e limpar texto"),
         ("[V]", "Alternar modo de voz (Manual <-> Automático)"),
+        ("[M]", "Alternar classificador (MediaPipe .task <-> SNN)"),
         ("[+] / [=]", "Aumentar limiar de confiança (+5%)"),
         ("[-] / [_]", "Diminuir limiar de confiança (-5%)"),
         ("[C]", "Limpar a legenda acumulada"),
@@ -200,6 +227,8 @@ print("Atalhos disponíveis na janela:")
 print("  [H]        : Abrir / Fechar Manual de Atalhos (Pop-up)")
 print("  [Enter]    : Falar a legenda acumulada (TTS) e limpar")
 print("  [V]        : Alternar modo de voz (Manual [Enter] <-> Automático)")
+print("  [M]        : Alternar classificador (MediaPipe .task <-> SNN)")
+print(f"Classificador ativo: {'SNN' if active_model == 'snn' else 'MediaPipe .task'}")
 print("  [+] ou [=] : Aumentar limiar de confiança (+5%)")
 print("  [-] ou [_] : Diminuir limiar de confiança (-5%)")
 print("  [C]        : Limpar legenda acumulada")
@@ -300,11 +329,19 @@ while cap.isOpened():
     if not result.hand_landmarks:
         last_seen_token = None
 
+    # Classificar a letra com o modelo ativo
+    top_label, top_score = None, 0.0
+    if active_model == "snn" and result.hand_landmarks:
+        # A SNN recebe os 21 landmarks que o MediaPipe acabou de extrair
+        top_label, top_score = snn_classifier.prever(result.hand_landmarks[0])
+    elif active_model == "task" and result.gestures:
+        top_label = result.gestures[0][0].category_name
+        top_score = result.gestures[0][0].score
+
     # Processar os gestos reconhecidos (pausa a digitação na legenda se o menu de ajuda estiver aberto)
-    if result.gestures and not show_help:
-        top_gesture = result.gestures[0][0]
-        label = top_gesture.category_name
-        score = top_gesture.score
+    if top_label is not None and not show_help:
+        label = top_label
+        score = top_score
 
         if label and label.lower() != "none":
             gesture_detected = True
@@ -353,7 +390,8 @@ while cap.isOpened():
         label_color = COLOR_SILVER
 
     thresh_text = f"Limiar: {threshold_percent}% [+/-]"
-    sub_left = "Reconhecimento ativo" if not show_help else "MODO AJUDA ABERTO"
+    model_name = "SNN" if active_model == "snn" else "MediaPipe .task"
+    sub_left = f"Reconhecimento ativo  |  Modelo: {model_name} [M]" if not show_help else "MODO AJUDA ABERTO"
     top_shortcuts = "[H] Manual de Atalhos  |  [C] Limpar  |  [Q] Sair"
 
     if USE_PIL_FONT:
@@ -459,6 +497,13 @@ while cap.isOpened():
             last_legend_update_time = 0.0
         else:
             print("Legenda vazia para falar.")
+    elif key in (ord('m'), ord('M')):  # Alternar entre o .task e a SNN
+        if snn_classifier is None:
+            print("SNN indisponível: treine com src/evaluation/testar_snn.py e instale torch e snntorch.")
+        else:
+            active_model = "snn" if active_model == "task" else "task"
+            last_seen_token = None
+            print(f"Classificador alternado para: {'SNN' if active_model == 'snn' else 'MediaPipe .task'}")
     elif key in (ord('v'), ord('V')):  # Alternar entre modo Manual e Automático
         AUTO_SPEAK = not AUTO_SPEAK
         mode_str = f"AUTOMÁTICO (fala após {LEGEND_CLEAR_SECONDS}s de inatividade)" if AUTO_SPEAK else "MANUAL (fala apenas ao teclar Enter)"

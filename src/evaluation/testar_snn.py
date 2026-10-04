@@ -7,24 +7,23 @@ Fluxo:
      cache (results/tables/landmarks_libras.npz) para não reprocessar as fotos.
   2. Normaliza cada mão (punho na origem, escala pelo maior ponto) para a rede
      não depender da posição ou do tamanho da mão na imagem.
-  3. Treina uma SNN com neurônios LIF (snnTorch). As 63 coordenadas entram como
-     corrente constante durante NUM_PASSOS instantes de tempo; a letra prevista
-     é o neurônio de saída que mais disparou.
+  3. Treina uma SNN com neurônios LIF (snnTorch, definida em src/snn/modelo_snn.py),
+     com cada mão também espelhada, e salva em models/snn_libras.pt. As 63
+     coordenadas entram como corrente constante durante NUM_PASSOS instantes de
+     tempo; a letra prevista é o neurônio de saída que mais disparou.
   4. Treina Random Forest e SVM nas MESMAS features e imprime as quatro
      métricas de todos no formato da tabela LaTeX.
 
 Dependências extras: pip install torch snntorch scikit-learn
 """
 import os
+import sys
 import time
 import warnings
 from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn as nn
-import snntorch as snn
-from snntorch import surrogate
 from snntorch import functional as SF
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
@@ -39,9 +38,9 @@ PASTA_TESTE = ROOT_DIR / "data" / "libras" / "test"
 MODELO = ROOT_DIR / "models" / "gesture_recognizer.task"
 CACHE = ROOT_DIR / "results" / "tables" / "landmarks_libras.npz"
 
-NUM_PASSOS = 25     # quantos instantes de tempo a rede "observa" cada mão
-OCULTOS = 128       # neurônios em cada camada escondida
-BETA = 0.9          # fator de decaimento da membrana dos neurônios LIF
+sys.path.insert(0, str(ROOT_DIR / "src"))
+from snn.modelo_snn import SNN, CAMINHO_SNN, normalizar, espelhar, salvar_snn  # noqa: E402
+
 EPOCAS = 50
 LR = 2e-3
 SEED = 42
@@ -106,43 +105,8 @@ def carregar_dados():
     return X_treino, y_treino, X_teste, y_teste
 
 
-# --- 3. NORMALIZAÇÃO DA MÃO ---
-def normalizar(X):
-    """Punho (landmark 0) na origem e escala pelo ponto mais distante dele."""
-    pontos = X.reshape(-1, 21, 3)
-    pontos = pontos - pontos[:, :1, :]
-    escala = np.linalg.norm(pontos, axis=2).max(axis=1).reshape(-1, 1, 1)
-    return (pontos / np.maximum(escala, 1e-6)).reshape(-1, 63).astype(np.float32)
-
-
-# --- 4. A REDE SPIKING ---
-class SNN(nn.Module):
-    def __init__(self, entradas, ocultos, saidas):
-        super().__init__()
-        grad = surrogate.fast_sigmoid(slope=25)
-        self.fc1 = nn.Linear(entradas, ocultos)
-        self.lif1 = snn.Leaky(beta=BETA, spike_grad=grad)
-        self.fc2 = nn.Linear(ocultos, ocultos)
-        self.lif2 = snn.Leaky(beta=BETA, spike_grad=grad)
-        self.fc3 = nn.Linear(ocultos, saidas)
-        self.lif3 = snn.Leaky(beta=BETA, spike_grad=grad)
-
-    def forward(self, x):
-        mem1 = self.lif1.init_leaky()
-        mem2 = self.lif2.init_leaky()
-        mem3 = self.lif3.init_leaky()
-        spikes_saida = []
-        # Codificação direta: a mesma entrada é injetada em todos os passos de tempo
-        for _ in range(NUM_PASSOS):
-            spk1, mem1 = self.lif1(self.fc1(x), mem1)
-            spk2, mem2 = self.lif2(self.fc2(spk1), mem2)
-            spk3, mem3 = self.lif3(self.fc3(spk2), mem3)
-            spikes_saida.append(spk3)
-        return torch.stack(spikes_saida)  # [passos, batch, classes]
-
-
 def treinar_snn(X_treino, y_treino, X_teste, num_classes):
-    modelo = SNN(X_treino.shape[1], OCULTOS, num_classes)
+    modelo = SNN(saidas=num_classes)
     otimizador = torch.optim.Adam(modelo.parameters(), lr=LR)
     # Pede ~80% de disparos no neurônio da letra certa e ~10% nos demais.
     # Com ce_rate_loss a mesma rede travava em ~87% de acurácia.
@@ -174,7 +138,7 @@ def treinar_snn(X_treino, y_treino, X_teste, num_classes):
         spikes = modelo(torch.from_numpy(X_teste))
         pred = spikes.sum(0).argmax(1).numpy()
         media_spikes = spikes.sum().item() / len(X_teste)
-    return pred, media_spikes
+    return modelo, pred, media_spikes
 
 
 def metricas(y_true, y_pred):
@@ -198,10 +162,19 @@ y_teste_i = np.array([indice[c] for c in y_teste])
 
 print("\nTreinando a SNN (snnTorch, neurônios LIF)...")
 inicio = time.time()
-pred_snn, media_spikes = treinar_snn(X_treino_n, y_treino_i, X_teste_n, len(classes))
+# O app da webcam espelha o frame (efeito espelho), e a pessoa pode usar a outra
+# mão. Por isso a SNN treina também com cada mão espelhada no eixo x.
+X_treino_aug = np.concatenate([X_treino_n, espelhar(X_treino_n)])
+y_treino_aug = np.concatenate([y_treino_i, y_treino_i])
+modelo_snn, pred_snn, media_spikes = treinar_snn(X_treino_aug, y_treino_aug, X_teste_n, len(classes))
 print(f"Tempo de treino da SNN: {time.time() - inicio:.1f}s | "
       f"spikes de saída por amostra: {media_spikes:.1f}")
 m_snn = metricas(y_teste_i, pred_snn)
+with torch.no_grad():
+    pred_esp = modelo_snn(torch.from_numpy(espelhar(X_teste_n))).sum(0).argmax(1).numpy()
+print(f"Acurácia da SNN no teste espelhado (como na webcam): {accuracy_score(y_teste_i, pred_esp):.3f}")
+salvar_snn(modelo_snn, classes)
+print(f"Modelo SNN salvo em {CAMINHO_SNN} (usado por src/desktop/detectar_libras.py --modelo snn)")
 
 print("\nTreinando Random Forest e SVM nas mesmas features normalizadas...")
 rf = RandomForestClassifier(n_estimators=100, random_state=SEED).fit(X_treino_n, y_treino_i)

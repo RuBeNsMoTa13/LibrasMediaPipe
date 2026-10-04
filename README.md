@@ -170,6 +170,10 @@ Executa a visão computacional localmente com síntese de voz (TTS) e buffer de 
 python src/desktop/detectar_libras.py
 ```
 * **Controles:** Posicione a mão em frente à câmera com boa iluminação. Pressione `q` para sair.
+* **Usar a Spiking Neural Network (SNN) na webcam:** o MediaPipe continua extraindo os landmarks e a SNN (`models/snn_libras.pt`) classifica a letra em cada frame. Precisa de `pip install torch snntorch`. Durante a execução, a tecla `M` alterna entre o `.task` e a SNN:
+  ```powershell
+  python src/desktop/detectar_libras.py --modelo snn
+  ```
 
 ### 2. Aplicação Web Gradio (Local ou Cloud)
 Inicia o servidor web local idêntico ao ambiente do Hugging Face:
@@ -187,7 +191,7 @@ python src/web/app.py
   ```
 
 * **Spiking Neural Network (SNN) vs. Random Forest vs. SVM:**
-  Treina uma SNN com neurônios LIF (snnTorch) sobre os mesmos 63 landmarks e compara com os modelos clássicos. Precisa de `pip install torch snntorch scikit-learn`; os landmarks ficam em cache em `results/tables/landmarks_libras.npz`:
+  Treina uma SNN com neurônios LIF (snnTorch) sobre os mesmos 63 landmarks, compara com os modelos clássicos e salva o modelo em `models/snn_libras.pt` para o app da webcam. Precisa de `pip install torch snntorch scikit-learn`; os landmarks ficam em cache em `results/tables/landmarks_libras.npz`:
   ```powershell
   python src/evaluation/testar_snn.py
   ```
