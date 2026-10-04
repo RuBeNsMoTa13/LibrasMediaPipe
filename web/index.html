@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LIBRAS no Navegador</title>
+<style>
+  :root {
+    --bg: #f6f4ef; --card: #ffffff; --ink: #1d1d1f; --muted: #5d5d63;
+    --ok: #10a35a; --warn: #d97a00; --line: rgba(0,0,0,.08); --accent: #2f5fd0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121316; --card: #1c1d22; --ink: #f1f1f3; --muted: #a3a3ab;
+            --ok: #36d07f; --warn: #ffab3d; --line: rgba(255,255,255,.1); --accent: #7aa2ff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 28px; margin: 0 0 4px; text-align: center; }
+  .sub { color: var(--muted); text-align: center; margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .stage { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #000; border-radius: 12px; overflow: hidden; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .stage video { display: none; }
+  .overlay { position: absolute; left: 12px; top: 12px; right: 12px; display: flex; justify-content: space-between; gap: 8px; pointer-events: none; }
+  .pill { background: rgba(0,0,0,.65); color: #fff; padding: 6px 12px; border-radius: 999px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #sign.ok { color: #4dff9a; } #sign.low { color: #ffb347; }
+  .placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: #ddd; text-align: center; padding: 16px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+           padding: 8px 14px; border-radius: 10px; cursor: pointer; }
+  button.primary { background: var(--accent); color: #fff; border-color: transparent; }
+  button:disabled { opacity: .5; cursor: default; }
+  .caption { margin-top: 14px; min-height: 56px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--line);
+             font-size: 28px; font-weight: 700; letter-spacing: 2px; word-break: break-all; }
+  label { color: var(--muted); }
+  input[type=range] { width: 160px; vertical-align: middle; }
+  .stats { color: var(--muted); font-size: 13px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+  @media (max-width: 520px) { .caption { font-size: 22px; } h1 { font-size: 22px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Alfabeto Manual de LIBRAS</h1>
+  <p class="sub">Reconhecimento em tempo real rodando inteiramente no seu navegador. O vídeo não sai do seu computador.</p>
+
+  <div class="card">
+    <div class="stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="canvas" width="640" height="480"></canvas>
+      <div class="placeholder" id="placeholder">Carregando modelo…</div>
+      <div class="overlay">
+        <span class="pill" id="sign">Sem gesto</span>
+        <span class="pill" id="fps">0 FPS</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="primary" id="btnStart" disabled>Iniciar câmera</button>
+      <button id="btnSpace">Espaço</button>
+      <button id="btnDel">Apagar</button>
+      <button id="btnClear">Limpar</button>
+      <button id="btnSpeak">Falar</button>
+      <label><input type="checkbox" id="autoSpeak"> fala automática</label>
+    </div>
+    <div class="row">
+      <label for="thr">Limiar de confiança: <b id="thrVal">50%</b></label>
+      <input type="range" id="thr" min="20" max="95" step="5" value="50">
+    </div>
+
+    <div class="caption" id="caption" aria-live="polite"></div>
+    <div class="stats" id="stats"></div>
+  </div>
+</main>
+
+<script type="module">
+import { FilesetResolver, GestureRecognizer, DrawingUtils }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs";
+
+// Mesmos parâmetros do app desktop (src/desktop/detectar_libras.py)
+const MODEL_URL = "../models/gesture_recognizer.task"; // servido a partir da raiz do repositório
+const LETTER_DELAY_MS = 700;       // intervalo mínimo entre letras
+const AUTO_SPEAK_IDLE_MS = 2000;   // fala o texto após esse tempo sem mão (modo automático)
+let threshold = 0.50;
+
+const $ = (id) => document.getElementById(id);
+const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
+const signEl = $("sign"), fpsEl = $("fps"), captionEl = $("caption"), statsEl = $("stats");
+
+let recognizer, delegate, drawer = new DrawingUtils(ctx);
+let text = "", lastSeen = null, lastCommit = 0, lastHandSeen = 0, spokenText = "";
+let lastVideoTime = -1, frames = 0, fpsT0 = performance.now(), inferMs = 0;
+
+async function createRecognizer() {
+  const fileset = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm");
+  for (const d of ["GPU", "CPU"]) {
+    try {
+      recognizer = await GestureRecognizer.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: MODEL_URL, delegate: d },
+        runningMode: "VIDEO",
+        numHands: 1,
+      });
+      delegate = d;
+      return;
+    } catch (e) {
+      console.warn(`Falha ao criar com delegate ${d}:`, e);
+    }
+  }
+  throw new Error("Não foi possível carregar o modelo.");
+}
+
+function updateText(token, now) {
+  if (!token) { lastSeen = null; return; }
+  const t = token.trim().toLowerCase();
+  if (t === lastSeen) return;
+  if (t.length === 1 && /[a-z]/.test(t)) {
+    if (now - lastCommit < LETTER_DELAY_MS) return; // não trava a letra: tenta de novo no próximo frame
+    text += t.toUpperCase();
+    lastCommit = now;
+  }
+  lastSeen = t;
+  renderCaption();
+}
+
+function renderCaption() { captionEl.textContent = text; }
+
+function speak(s) {
+  if (!s.trim() || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(s.toLowerCase());
+  u.lang = "pt-BR";
+  speechSynthesis.speak(u);
+}
+
+function loop() {
+  const now = performance.now();
+  // Só processa quando a câmera entregou um frame novo
+  if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+
+    // Espelha como no desktop (cv2.flip): o modelo vê a mesma orientação do treino/uso local
+    ctx.save();
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    const t0 = performance.now();
+    const result = recognizer.recognizeForVideo(canvas, now);
+    inferMs = inferMs * 0.9 + (performance.now() - t0) * 0.1;
+
+    let label = "Sem gesto", cls = "";
+    if (result.landmarks?.length) {
+      lastHandSeen = now;
+      for (const lm of result.landmarks) {
+        drawer.drawConnectors(lm, GestureRecognizer.HAND_CONNECTIONS, { color: "#2f7bff", lineWidth: 4 });
+        drawer.drawLandmarks(lm, { color: "#22dd66", radius: 4 });
+      }
+      const top = result.gestures?.[0]?.[0];
+      if (top && top.categoryName && top.categoryName.toLowerCase() !== "none") {
+        const pct = (top.score * 100).toFixed(1);
+        if (top.score >= threshold) {
+          label = `${top.categoryName} (${pct}%)`; cls = "ok";
+          updateText(top.categoryName, now);
+        } else {
+          label = `${top.categoryName} (${pct}%) abaixo do limiar`; cls = "low";
+          lastSeen = null;
+        }
+      } else {
+        lastSeen = null;
+      }
+    } else {
+      lastSeen = null;
+    }
+    signEl.textContent = label;
+    signEl.className = "pill " + cls;
+
+    if ($("autoSpeak").checked && text && text !== spokenText && now - lastHandSeen > AUTO_SPEAK_IDLE_MS) {
+      speak(text); spokenText = text;
+    }
+
+    frames++;
+  }
+  if (now - fpsT0 >= 500) {
+    fpsEl.textContent = `${(frames * 1000 / (now - fpsT0)).toFixed(0)} FPS`;
+    statsEl.textContent = `Inferência: ${inferMs.toFixed(1)} ms/frame · aceleração: ${delegate} · ${canvas.width}×${canvas.height}`;
+    frames = 0; fpsT0 = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+async function startCamera() {
+  $("btnStart").disabled = true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: false });
+    video.srcObject = stream;
+    await video.play();
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    $("placeholder").style.display = "none";
+    requestAnimationFrame(loop);
+  } catch (e) {
+    $("placeholder").textContent = "Não foi possível acessar a câmera: " + e.message;
+    $("btnStart").disabled = false;
+  }
+}
+
+$("btnStart").onclick = startCamera;
+$("btnSpace").onclick = () => { if (text && !text.endsWith(" ")) { text += " "; renderCaption(); } };
+$("btnDel").onclick = () => { text = text.slice(0, -1); lastSeen = null; renderCaption(); };
+$("btnClear").onclick = () => { text = ""; spokenText = ""; lastSeen = null; renderCaption(); };
+$("btnSpeak").onclick = () => speak(text);
+$("thr").oninput = (e) => { threshold = e.target.value / 100; $("thrVal").textContent = e.target.value + "%"; };
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === " ") { e.preventDefault(); $("btnSpace").click(); }
+  else if (e.key === "Backspace") $("btnDel").click();
+  else if (e.key.toLowerCase() === "c") $("btnClear").click();
+  else if (e.key === "Enter") $("btnSpeak").click();
+});
+
+try {
+  await createRecognizer();
+  $("placeholder").textContent = "Modelo pronto. Clique em “Iniciar câmera”.";
+  $("btnStart").disabled = false;
+  window.__ready = delegate; // usado nos testes automatizados
+} catch (e) {
+  $("placeholder").textContent = e.message;
+}
+</script>
+</body>
+</html>
