@@ -79,7 +79,10 @@ import { FilesetResolver, GestureRecognizer, DrawingUtils }
   from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs";
 
 // Mesmos parâmetros do app desktop (src/desktop/detectar_libras.py)
-const MODEL_URL = "../models/gesture_recognizer.task"; // servido a partir da raiz do repositório
+// No Hugging Face Space estático só a pasta web/ é servida, então o modelo vem do endpoint "resolve" do repositório
+const MODEL_URL = location.hostname.endsWith(".hf.space")
+  ? "https://huggingface.co/spaces/RubensMota13/LibrasMediaPipe/resolve/main/models/gesture_recognizer.task"
+  : "../models/gesture_recognizer.task"; // servido a partir da raiz do repositório
 const LETTER_DELAY_MS = 700;       // intervalo mínimo entre letras
 const AUTO_SPEAK_IDLE_MS = 2000;   // fala o texto após esse tempo sem mão (modo automático)
 let threshold = 0.50;
