@@ -3,8 +3,8 @@ title: LibrasMediaPipe
 emoji: 🐠
 colorFrom: yellow
 colorTo: purple
-sdk: docker
-app_port: 7860
+sdk: static
+app_file: web/index.html
 pinned: false
 ---
 
