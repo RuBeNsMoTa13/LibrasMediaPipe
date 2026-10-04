@@ -186,6 +186,12 @@ python src/web/app.py
   python src/evaluation/comparar_modelos.py
   ```
 
+* **Spiking Neural Network (SNN) vs. Random Forest vs. SVM:**
+  Treina uma SNN com neurônios LIF (snnTorch) sobre os mesmos 63 landmarks e compara com os modelos clássicos. Precisa de `pip install torch snntorch scikit-learn`; os landmarks ficam em cache em `results/tables/landmarks_libras.npz`:
+  ```powershell
+  python src/evaluation/testar_snn.py
+  ```
+
 * **Matriz de Confusão e Relatório de Classificação:**
   Avalia o modelo MediaPipe Tasks contra as amostras de teste e salva a figura em `results/figures/matriz_de_confusao.png`:
   ```powershell
