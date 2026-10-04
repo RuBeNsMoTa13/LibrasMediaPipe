@@ -7,12 +7,14 @@ Fluxo:
      cache (results/tables/landmarks_libras.npz) para não reprocessar as fotos.
   2. Normaliza cada mão (punho na origem, escala pelo maior ponto) para a rede
      não depender da posição ou do tamanho da mão na imagem.
-  3. Treina uma SNN com neurônios LIF (snnTorch, definida em src/snn/modelo_snn.py),
-     com cada mão também espelhada, e salva em models/snn_libras.pt. As 63
+  3. Treina uma SNN com neurônios LIF (snnTorch, definida em
+     src/classificadores/snn.py), com cada mão também espelhada. As 63
      coordenadas entram como corrente constante durante NUM_PASSOS instantes de
      tempo; a letra prevista é o neurônio de saída que mais disparou.
   4. Treina Random Forest e SVM nas MESMAS features e imprime as quatro
      métricas de todos no formato da tabela LaTeX.
+  5. Salva os três modelos em models/ (snn_libras.pt, rf_libras.pkl e
+     svm_libras.pkl) para o app da webcam, que alterna entre eles com a tecla M.
 
 Dependências extras: pip install torch snntorch scikit-learn
 """
@@ -39,7 +41,9 @@ MODELO = ROOT_DIR / "models" / "gesture_recognizer.task"
 CACHE = ROOT_DIR / "results" / "tables" / "landmarks_libras.npz"
 
 sys.path.insert(0, str(ROOT_DIR / "src"))
-from snn.modelo_snn import SNN, CAMINHO_SNN, normalizar, espelhar, salvar_snn  # noqa: E402
+from classificadores.landmarks import normalizar, espelhar  # noqa: E402
+from classificadores.snn import SNN, CAMINHO_SNN, salvar_snn  # noqa: E402
+from classificadores.classicos import CAMINHO_RF, CAMINHO_SVM, salvar_classico  # noqa: E402
 
 EPOCAS = 50
 LR = 2e-3
@@ -163,7 +167,8 @@ y_teste_i = np.array([indice[c] for c in y_teste])
 print("\nTreinando a SNN (snnTorch, neurônios LIF)...")
 inicio = time.time()
 # O app da webcam espelha o frame (efeito espelho), e a pessoa pode usar a outra
-# mão. Por isso a SNN treina também com cada mão espelhada no eixo x.
+# mão. Por isso os modelos treinam também com cada mão espelhada no eixo x.
+X_teste_esp = espelhar(X_teste_n)
 X_treino_aug = np.concatenate([X_treino_n, espelhar(X_treino_n)])
 y_treino_aug = np.concatenate([y_treino_i, y_treino_i])
 modelo_snn, pred_snn, media_spikes = treinar_snn(X_treino_aug, y_treino_aug, X_teste_n, len(classes))
@@ -171,16 +176,22 @@ print(f"Tempo de treino da SNN: {time.time() - inicio:.1f}s | "
       f"spikes de saída por amostra: {media_spikes:.1f}")
 m_snn = metricas(y_teste_i, pred_snn)
 with torch.no_grad():
-    pred_esp = modelo_snn(torch.from_numpy(espelhar(X_teste_n))).sum(0).argmax(1).numpy()
+    pred_esp = modelo_snn(torch.from_numpy(X_teste_esp)).sum(0).argmax(1).numpy()
 print(f"Acurácia da SNN no teste espelhado (como na webcam): {accuracy_score(y_teste_i, pred_esp):.3f}")
 salvar_snn(modelo_snn, classes)
-print(f"Modelo SNN salvo em {CAMINHO_SNN} (usado por src/desktop/detectar_libras.py --modelo snn)")
+print(f"Modelo SNN salvo em {CAMINHO_SNN}")
 
 print("\nTreinando Random Forest e SVM nas mesmas features normalizadas...")
-rf = RandomForestClassifier(n_estimators=100, random_state=SEED).fit(X_treino_n, y_treino_i)
+rf = RandomForestClassifier(n_estimators=100, random_state=SEED).fit(X_treino_aug, y_treino_aug)
 m_rf = metricas(y_teste_i, rf.predict(X_teste_n))
-svm = SVC(kernel="rbf", random_state=SEED).fit(X_treino_n, y_treino_i)
+# probability=True para o app mostrar a confiança de cada letra
+svm = SVC(kernel="rbf", probability=True, random_state=SEED).fit(X_treino_aug, y_treino_aug)
 m_svm = metricas(y_teste_i, svm.predict(X_teste_n))
+for nome, modelo, caminho in [("Random Forest", rf, CAMINHO_RF), ("SVM", svm, CAMINHO_SVM)]:
+    acc_esp = accuracy_score(y_teste_i, modelo.predict(X_teste_esp))
+    print(f"Acurácia do {nome} no teste espelhado (como na webcam): {acc_esp:.3f}")
+    salvar_classico(modelo, classes, caminho)
+    print(f"Modelo {nome} salvo em {caminho}")
 
 print("\n" + "=" * 65)
 print("VALORES PARA A TABELA NO LATEX (acurácia, precisão, recall, F1)")
