@@ -93,6 +93,9 @@ Para eliminar o *lag* restante e tornar a aplicação no Hugging Face tão respo
 * O navegador do cliente desenha os pontos sobre o seu próprio vídeo usando um elemento `<canvas>` em JavaScript. Isso elimina 50% do tráfego de rede e reduz a latência à metade.
 
 ### Proposta B: Inferência 100% Client-Side com MediaPipe Web (Solução Definitiva)
+
+> **Implementada em 04/10/2026.** O Space passou a ser estático e roda `web/index.html` no navegador. Detalhes, causas do lag e resultados em [versao-web-navegador.md](versao-web-navegador.md).
+
 * O MediaPipe disponibiliza a biblioteca oficial em JavaScript (`@mediapipe/tasks-vision`) que pode ser executada diretamente via WebAssembly / WebGL no navegador do usuário.
 * **Vantagem:** O vídeo da webcam **nunca sai da máquina do usuário**. O modelo roda diretamente na GPU do navegador do cliente a 60 FPS, sem gastar processamento do Hugging Face e sem qualquer atraso de rede.
 * O Hugging Face Spaces funciona nesse caso apenas como hospedeiro estático dos arquivos da aplicação.
