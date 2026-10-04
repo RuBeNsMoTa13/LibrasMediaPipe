@@ -37,6 +37,18 @@
   label { color: var(--muted); }
   input[type=range] { width: 160px; vertical-align: middle; }
   .stats { color: var(--muted); font-size: 13px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+  .voice { margin-top: 12px; font-weight: 600; }
+  .voice.manual { color: var(--warn); } .voice.auto { color: var(--accent); }
+  .modal { position: fixed; inset: 0; background: rgba(10,12,16,.75); display: none; place-items: center; padding: 16px; z-index: 10; }
+  .modal.open { display: grid; }
+  .modal-box { background: var(--card); color: var(--ink); border: 2px solid var(--accent); border-radius: 16px;
+               padding: 20px 22px; width: 100%; max-width: 620px; max-height: 90vh; overflow: auto; }
+  .modal-box h2 { margin: 0 0 12px; font-size: 20px; text-align: center; color: var(--accent); }
+  .modal-box table { width: 100%; border-collapse: collapse; }
+  .modal-box td { padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .modal-box td:first-child { white-space: nowrap; font-weight: 700; color: var(--warn); padding-right: 14px; }
+  .modal-box p { color: var(--muted); font-size: 14px; text-align: center; margin: 14px 0 0; }
+  kbd { font: inherit; }
   @media (max-width: 520px) { .caption { font-size: 22px; } h1 { font-size: 22px; } }
 </style>
 </head>
@@ -61,9 +73,11 @@
       <button id="btnSpace">Espaço</button>
       <button id="btnDel">Apagar</button>
       <button id="btnClear">Limpar</button>
-      <button id="btnSpeak">Falar</button>
-      <label><input type="checkbox" id="autoSpeak"> fala automática</label>
+      <button id="btnSpeak">Falar (Enter)</button>
+      <button id="btnVoice">Modo de voz (V)</button>
+      <button id="btnHelp">Manual de atalhos (H)</button>
     </div>
+    <div class="voice manual" id="voice"></div>
     <div class="row">
       <label for="thr">Limiar de confiança: <b id="thrVal">50%</b></label>
       <input type="range" id="thr" min="20" max="95" step="5" value="50">
@@ -73,6 +87,24 @@
     <div class="stats" id="stats"></div>
   </div>
 </main>
+
+<div class="modal" id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+  <div class="modal-box">
+    <h2 id="helpTitle">MANUAL DE ATALHOS - LIBRAS</h2>
+    <table>
+      <tr><td><kbd>Enter</kbd></td><td>Falar legenda acumulada (voz) e limpar texto</td></tr>
+      <tr><td><kbd>V</kbd></td><td>Alternar modo de voz (Manual ↔ Automático)</td></tr>
+      <tr><td><kbd>+</kbd> / <kbd>=</kbd></td><td>Aumentar limiar de confiança (+5%)</td></tr>
+      <tr><td><kbd>-</kbd> / <kbd>_</kbd></td><td>Diminuir limiar de confiança (-5%)</td></tr>
+      <tr><td><kbd>C</kbd></td><td>Limpar a legenda acumulada</td></tr>
+      <tr><td><kbd>D</kbd> / <kbd>Backspace</kbd></td><td>Apagar o último caractere digitado</td></tr>
+      <tr><td><kbd>Espaço</kbd></td><td>Inserir um espaço entre palavras</td></tr>
+      <tr><td><kbd>H</kbd></td><td>Abrir / fechar este manual de atalhos</td></tr>
+      <tr><td><kbd>Q</kbd></td><td>Parar a câmera</td></tr>
+    </table>
+    <p>Pressione <b>H</b> ou <b>Esc</b> (ou clique fora) para retornar ao vídeo. O reconhecimento fica pausado enquanto o manual está aberto.</p>
+  </div>
+</div>
 
 <script type="module">
 import { FilesetResolver, GestureRecognizer, DrawingUtils }
@@ -84,15 +116,17 @@ const MODEL_URL = location.hostname.endsWith(".hf.space")
   ? "https://huggingface.co/spaces/RubensMota13/LibrasMediaPipe/resolve/main/models/gesture_recognizer.task"
   : "../models/gesture_recognizer.task"; // servido a partir da raiz do repositório
 const LETTER_DELAY_MS = 700;       // intervalo mínimo entre letras
-const AUTO_SPEAK_IDLE_MS = 2000;   // fala o texto após esse tempo sem mão (modo automático)
+const LEGEND_CLEAR_MS = 5000;      // modo automático: fala e limpa após esse tempo sem novos sinais
 let threshold = 0.50;
+let autoSpeak = false;             // false = manual (Enter), true = automático (pausa de 5 s)
+let showHelp = false;              // manual de atalhos aberto (pausa a digitação)
 
 const $ = (id) => document.getElementById(id);
 const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
 const signEl = $("sign"), fpsEl = $("fps"), captionEl = $("caption"), statsEl = $("stats");
 
 let recognizer, delegate, drawer = new DrawingUtils(ctx);
-let text = "", lastSeen = null, lastCommit = 0, lastHandSeen = 0, spokenText = "";
+let text = "", lastSeen = null, lastCommit = 0, lastUpdate = 0, stream = null;
 let lastVideoTime = -1, frames = 0, fpsT0 = performance.now(), inferMs = 0;
 
 async function createRecognizer() {
@@ -114,20 +148,64 @@ async function createRecognizer() {
   throw new Error("Não foi possível carregar o modelo.");
 }
 
+// Mesma lógica de update_recognized_text do desktop
 function updateText(token, now) {
   if (!token) { lastSeen = null; return; }
   const t = token.trim().toLowerCase();
-  if (t === lastSeen) return;
-  if (t.length === 1 && /[a-z]/.test(t)) {
+  if (!t || t === lastSeen) return;
+  let changed = false;
+  if (["space", "espaco", "espaço"].includes(t)) {
+    if (text && !text.endsWith(" ")) { text += " "; changed = true; }
+  } else if (["del", "delete", "apagar", "backspace"].includes(t)) {
+    changed = text.length > 0;
+    text = text.slice(0, -1);
+  } else if (t.length === 1 && /[a-z]/.test(t)) {
     if (now - lastCommit < LETTER_DELAY_MS) return; // não trava a letra: tenta de novo no próximo frame
     text += t.toUpperCase();
     lastCommit = now;
+    changed = true;
   }
   lastSeen = t;
-  renderCaption();
+  if (changed) { lastUpdate = now; renderCaption(); }
 }
 
 function renderCaption() { captionEl.textContent = text; }
+
+function resetText() { text = ""; lastSeen = null; lastUpdate = 0; renderCaption(); }
+
+function renderVoice() {
+  const el = $("voice");
+  el.textContent = autoSpeak
+    ? `Voz: AUTOMÁTICO – fala e limpa após ${LEGEND_CLEAR_MS / 1000} s sem novos sinais (tecle V p/ Manual)`
+    : "Voz: MANUAL – tecle Enter p/ falar (tecle V p/ Automático)";
+  el.className = "voice " + (autoSpeak ? "auto" : "manual");
+}
+
+function setThreshold(v) {
+  threshold = Math.min(0.95, Math.max(0.20, Math.round(v * 100) / 100));
+  $("thr").value = Math.round(threshold * 100);
+  $("thrVal").textContent = Math.round(threshold * 100) + "%";
+}
+
+function toggleHelp(open = !showHelp) {
+  showHelp = open;
+  $("help").classList.toggle("open", open);
+}
+
+function speakAndClear() {
+  if (!text.trim()) return;
+  speak(text);
+  resetText();
+}
+
+function stopCamera() {
+  if (!stream) return;
+  stream.getTracks().forEach((t) => t.stop());
+  stream = null; video.srcObject = null;
+  $("placeholder").textContent = "Câmera parada. Clique em “Iniciar câmera”.";
+  $("placeholder").style.display = "";
+  $("btnStart").disabled = false;
+}
 
 function speak(s) {
   if (!s.trim() || !("speechSynthesis" in window)) return;
@@ -155,8 +233,9 @@ function loop() {
     inferMs = inferMs * 0.9 + (performance.now() - t0) * 0.1;
 
     let label = "Sem gesto", cls = "";
-    if (result.landmarks?.length) {
-      lastHandSeen = now;
+    if (showHelp) {
+      label = "Manual aberto – reconhecimento pausado";
+    } else if (result.landmarks?.length) {
       for (const lm of result.landmarks) {
         drawer.drawConnectors(lm, GestureRecognizer.HAND_CONNECTIONS, { color: "#2f7bff", lineWidth: 4 });
         drawer.drawLandmarks(lm, { color: "#22dd66", radius: 4 });
@@ -180,12 +259,12 @@ function loop() {
     signEl.textContent = label;
     signEl.className = "pill " + cls;
 
-    if ($("autoSpeak").checked && text && text !== spokenText && now - lastHandSeen > AUTO_SPEAK_IDLE_MS) {
-      speak(text); spokenText = text;
-    }
+    // Modo automático: fala e limpa a legenda após 5 s sem novos sinais (como no desktop)
+    if (autoSpeak && text && lastUpdate && now - lastUpdate >= LEGEND_CLEAR_MS) speakAndClear();
 
     frames++;
   }
+  if (!stream) return; // câmera parada (Q)
   if (now - fpsT0 >= 500) {
     fpsEl.textContent = `${(frames * 1000 / (now - fpsT0)).toFixed(0)} FPS`;
     statsEl.textContent = `Inferência: ${inferMs.toFixed(1)} ms/frame · aceleração: ${delegate} · ${canvas.width}×${canvas.height}`;
@@ -197,7 +276,7 @@ function loop() {
 async function startCamera() {
   $("btnStart").disabled = true;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
+    stream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: false });
     video.srcObject = stream;
     await video.play();
@@ -212,18 +291,33 @@ async function startCamera() {
 }
 
 $("btnStart").onclick = startCamera;
-$("btnSpace").onclick = () => { if (text && !text.endsWith(" ")) { text += " "; renderCaption(); } };
-$("btnDel").onclick = () => { text = text.slice(0, -1); lastSeen = null; renderCaption(); };
-$("btnClear").onclick = () => { text = ""; spokenText = ""; lastSeen = null; renderCaption(); };
-$("btnSpeak").onclick = () => speak(text);
-$("thr").oninput = (e) => { threshold = e.target.value / 100; $("thrVal").textContent = e.target.value + "%"; };
+$("btnSpace").onclick = () => { if (text && !text.endsWith(" ")) { text += " "; lastUpdate = performance.now(); renderCaption(); } };
+$("btnDel").onclick = () => { if (text) { text = text.slice(0, -1); lastSeen = null; lastUpdate = performance.now(); renderCaption(); } };
+$("btnClear").onclick = resetText;
+$("btnSpeak").onclick = speakAndClear;
+$("btnVoice").onclick = () => { autoSpeak = !autoSpeak; renderVoice(); };
+$("btnHelp").onclick = () => toggleHelp(true);
+$("help").onclick = (e) => { if (e.target.id === "help") toggleHelp(false); };
+$("thr").oninput = (e) => setThreshold(e.target.value / 100);
+
+// Mesmos atalhos de teclado do app desktop
 document.addEventListener("keydown", (e) => {
-  if (e.target.tagName === "INPUT") return;
-  if (e.key === " ") { e.preventDefault(); $("btnSpace").click(); }
-  else if (e.key === "Backspace") $("btnDel").click();
-  else if (e.key.toLowerCase() === "c") $("btnClear").click();
-  else if (e.key === "Enter") $("btnSpeak").click();
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === "h") { toggleHelp(); return; }
+  if (k === "escape") { if (showHelp) toggleHelp(false); return; }
+  if (showHelp) return;
+  if (e.target.type === "range" && k.startsWith("arrow")) return;
+  if (k === " ") { e.preventDefault(); $("btnSpace").click(); }
+  else if (k === "backspace" || k === "d") { e.preventDefault(); $("btnDel").click(); }
+  else if (k === "c") $("btnClear").click();
+  else if (k === "enter") { e.preventDefault(); speakAndClear(); }
+  else if (k === "v") $("btnVoice").click();
+  else if (k === "+" || k === "=") setThreshold(threshold + 0.05);
+  else if (k === "-" || k === "_") setThreshold(threshold - 0.05);
+  else if (k === "q") stopCamera();
 });
+renderVoice();
 
 try {
   await createRecognizer();
