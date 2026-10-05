@@ -16,7 +16,7 @@ import torch.nn as nn
 import snntorch as snn
 from snntorch import surrogate
 
-from classificadores.landmarks import normalizar, para_array
+from classificadores.landmarks import preparar
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 CAMINHO_SNN = ROOT_DIR / "models" / "snn_libras.pt"
@@ -53,7 +53,8 @@ class SNN(nn.Module):
 
 def salvar_snn(modelo, classes, caminho=CAMINHO_SNN):
     Path(caminho).parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"pesos": modelo.state_dict(), "classes": [str(c) for c in classes]}, caminho)
+    torch.save({"pesos": modelo.state_dict(), "classes": [str(c) for c in classes],
+                "entradas": modelo.fc1.in_features}, caminho)
 
 
 class ClassificadorSNN:
@@ -62,7 +63,9 @@ class ClassificadorSNN:
     def __init__(self, caminho=CAMINHO_SNN):
         dados = torch.load(caminho, map_location="cpu")
         self.classes = dados["classes"]
-        self.modelo = SNN(saidas=len(self.classes))
+        # Modelos salvos antes dos ângulos não guardam "entradas": eram 63 coordenadas
+        self.entradas = dados.get("entradas", 63)
+        self.modelo = SNN(entradas=self.entradas, saidas=len(self.classes))
         self.modelo.load_state_dict(dados["pesos"])
         self.modelo.eval()
 
@@ -73,7 +76,7 @@ class ClassificadorSNN:
         A confiança é a fração dos NUM_PASSOS em que o neurônio vencedor disparou
         (a rede foi treinada para disparar em ~80% dos passos na letra certa).
         """
-        x = torch.from_numpy(normalizar(para_array(hand_landmarks)))
+        x = torch.from_numpy(preparar(hand_landmarks, self.entradas))
         contagem = self.modelo(x).sum(0)[0]
         indice = int(contagem.argmax())
         return self.classes[indice], float(contagem[indice]) / NUM_PASSOS

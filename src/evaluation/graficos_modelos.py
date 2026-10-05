@@ -47,7 +47,7 @@ SAIDA = ROOT_DIR / "results" / "figures"
 SAIDA.mkdir(parents=True, exist_ok=True)
 
 sys.path.insert(0, str(ROOT_DIR / "src"))
-from classificadores.landmarks import normalizar, espelhar  # noqa: E402
+from classificadores.landmarks import normalizar, espelhar, com_angulos  # noqa: E402
 from classificadores.snn import SNN  # noqa: E402
 
 EPOCAS = 50
@@ -131,7 +131,7 @@ def avaliar_teste_com_mediapipe():
 
 # --- 3. SNN COM HISTÓRICO POR ÉPOCA ---
 def treinar_snn_com_historico(X_treino, y_treino, X_teste, y_teste, num_classes):
-    modelo = SNN(saidas=num_classes)
+    modelo = SNN(entradas=X_treino.shape[1], saidas=num_classes)
     otimizador = torch.optim.Adam(modelo.parameters(), lr=LR)
     perda_fn = SF.mse_count_loss(correct_rate=0.8, incorrect_rate=0.1)
     Xt, yt = torch.from_numpy(X_treino), torch.from_numpy(y_treino).long()
@@ -273,7 +273,7 @@ def grafico_matriz(y_true, y_pred, classes, nome, arquivo):
 def grafico_importancia_rf(rf):
     # 63 features = (x, y, z) de 21 pontos; soma as três coordenadas de cada ponto.
     # O punho fica de fora: a normalização o coloca sempre na origem (importância 0).
-    imp = rf.feature_importances_.reshape(21, 3).sum(axis=1) * 100
+    imp = rf.feature_importances_[:63].reshape(21, 3).sum(axis=1) * 100
     ordem = [i for i in np.argsort(imp) if i != 0]
     plt.figure(figsize=(8, 7))
     plt.barh([NOMES_LANDMARKS[i] for i in ordem], imp[ordem], 0.65, color="#eb6834")
@@ -301,7 +301,8 @@ X_treino_n = normalizar(X_treino)
 X_teste_n = normalizar(X_teste)
 y_treino_i = np.array([indice[c] for c in y_treino])
 y_teste_i = np.array([indice[c] for c in y_teste])
-X_treino_aug = np.concatenate([X_treino_n, espelhar(X_treino_n)])
+X_treino_aug = com_angulos(np.concatenate([X_treino_n, espelhar(X_treino_n)]))
+X_teste_n = com_angulos(X_teste_n)
 y_treino_aug = np.concatenate([y_treino_i, y_treino_i])
 
 print("Treinando a SNN...")

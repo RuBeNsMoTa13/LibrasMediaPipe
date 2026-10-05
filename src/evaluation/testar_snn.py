@@ -41,7 +41,7 @@ MODELO = ROOT_DIR / "models" / "gesture_recognizer.task"
 CACHE = ROOT_DIR / "results" / "tables" / "landmarks_libras.npz"
 
 sys.path.insert(0, str(ROOT_DIR / "src"))
-from classificadores.landmarks import normalizar, espelhar  # noqa: E402
+from classificadores.landmarks import normalizar, espelhar, com_angulos  # noqa: E402
 from classificadores.snn import SNN, CAMINHO_SNN, salvar_snn  # noqa: E402
 from classificadores.classicos import CAMINHO_RF, CAMINHO_SVM, salvar_classico  # noqa: E402
 
@@ -110,7 +110,7 @@ def carregar_dados():
 
 
 def treinar_snn(X_treino, y_treino, X_teste, num_classes):
-    modelo = SNN(saidas=num_classes)
+    modelo = SNN(entradas=X_treino.shape[1], saidas=num_classes)
     otimizador = torch.optim.Adam(modelo.parameters(), lr=LR)
     # Pede ~80% de disparos no neurônio da letra certa e ~10% nos demais.
     # Com ce_rate_loss a mesma rede travava em ~87% de acurácia.
@@ -168,8 +168,10 @@ print("\nTreinando a SNN (snnTorch, neurônios LIF)...")
 inicio = time.time()
 # O app da webcam espelha o frame (efeito espelho), e a pessoa pode usar a outra
 # mão. Por isso os modelos treinam também com cada mão espelhada no eixo x.
-X_teste_esp = espelhar(X_teste_n)
-X_treino_aug = np.concatenate([X_treino_n, espelhar(X_treino_n)])
+X_teste_esp = com_angulos(espelhar(X_teste_n))
+X_treino_aug = com_angulos(np.concatenate([X_treino_n, espelhar(X_treino_n)]))
+# Às 63 coordenadas somam-se 19 ângulos dos dedos (ver landmarks.com_angulos)
+X_teste_n = com_angulos(X_teste_n)
 y_treino_aug = np.concatenate([y_treino_i, y_treino_i])
 modelo_snn, pred_snn, media_spikes = treinar_snn(X_treino_aug, y_treino_aug, X_teste_n, len(classes))
 print(f"Tempo de treino da SNN: {time.time() - inicio:.1f}s | "

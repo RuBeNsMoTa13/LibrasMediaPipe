@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-from classificadores.landmarks import normalizar, para_array
+from classificadores.landmarks import preparar
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 CAMINHO_RF = ROOT_DIR / "models" / "rf_libras.pkl"
@@ -34,7 +34,7 @@ class ClassificadorClassico:
 
     def prever(self, hand_landmarks):
         """Recebe os 21 landmarks do MediaPipe e devolve (letra, confiança)."""
-        x = normalizar(para_array(hand_landmarks))
+        x = preparar(hand_landmarks, self.modelo.n_features_in_)
         probabilidades = self.modelo.predict_proba(x)[0]
         indice = int(np.argmax(probabilidades))
         return self.classes[int(self.modelo.classes_[indice])], float(probabilidades[indice])
