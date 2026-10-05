@@ -159,7 +159,7 @@ def draw_help_modal(frame):
     shortcuts = [
         ("[Enter]", "Falar legenda acumulada (TTS) e limpar texto"),
         ("[V]", "Alternar modo de voz (Manual <-> Automático)"),
-        ("[M]", "Trocar classificador (.task, SNN, Random Forest, SVM)"),
+        ("[M]", "Trocar o modelo de classificação (.task, SNN, RF, SVM)"),
         ("[+] / [=]", "Aumentar limiar de confiança (+5%)"),
         ("[-] / [_]", "Diminuir limiar de confiança (-5%)"),
         ("[C]", "Limpar a legenda acumulada"),
