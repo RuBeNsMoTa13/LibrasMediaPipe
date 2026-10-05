@@ -154,6 +154,16 @@ def metricas(y_true, y_pred):
 
 # --- 5. EXECUÇÃO ---
 X_treino, y_treino, X_teste, y_teste = carregar_dados()
+
+# Amostras da mão do usuário gravadas por src/desktop/coletar_minha_mao.py.
+# Entram só no treino: o dataset tem praticamente uma pessoa só, e sem outras
+# mãos os modelos decoram aquela (U e V confundem ao vivo).
+MINHA_MAO = ROOT_DIR / "data" / "minha_mao" / "landmarks.npz"
+if MINHA_MAO.exists():
+    m = np.load(MINHA_MAO)
+    X_treino = np.concatenate([X_treino, m["X"].astype(np.float32)])
+    y_treino = np.concatenate([y_treino, m["y"]])
+    print(f"Somando {len(m['y'])} amostras da sua mão ao treino ({MINHA_MAO})")
 print(f"\nMãos detectadas: treino {len(X_treino)} | teste {len(X_teste)}")
 
 X_treino_n = normalizar(X_treino)
