@@ -1,3 +1,6 @@
+import argparse
+import sys
+
 import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
@@ -9,6 +12,44 @@ import numpy as np
 # --- CONFIGURAÇÕES ---
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 MODEL_PATH = str(ROOT_DIR / 'models' / 'gesture_recognizer.task')
+
+# --- ESCOLHA DO CLASSIFICADOR ---
+# task: o gesture_recognizer.task classifica a letra (padrão)
+# snn, rf, svm: o MediaPipe só extrai os landmarks e o modelo escolhido classifica.
+#   Os três são treinados e salvos em models/ por src/evaluation/testar_snn.py.
+# A tecla M passa pelos modelos disponíveis nesta ordem.
+MODEL_NAMES = {
+    "task": "MediaPipe .task",
+    "snn": "SNN",
+    "rf": "Random Forest",
+    "svm": "SVM",
+}
+parser = argparse.ArgumentParser(description="Reconhecimento do alfabeto manual de LIBRAS na webcam")
+parser.add_argument("--modelo", choices=list(MODEL_NAMES), default="task",
+                    help="classificador usado nas letras (padrão: task)")
+args = parser.parse_args()
+
+sys.path.insert(0, str(ROOT_DIR / 'src'))
+classifiers = {}  # modelos de landmarks carregados: nome -> objeto com prever(hand_landmarks)
+try:
+    from classificadores.snn import ClassificadorSNN, CAMINHO_SNN
+    if CAMINHO_SNN.exists():
+        classifiers["snn"] = ClassificadorSNN()
+except ImportError as e:
+    print("Aviso: SNN indisponível (pip install torch snntorch):", e)
+try:
+    from classificadores.classicos import ClassificadorClassico, CAMINHO_RF, CAMINHO_SVM
+    for key, path in (("rf", CAMINHO_RF), ("svm", CAMINHO_SVM)):
+        if path.exists():
+            classifiers[key] = ClassificadorClassico(path)
+except ImportError as e:
+    print("Aviso: Random Forest e SVM indisponíveis (pip install scikit-learn):", e)
+
+available_models = ["task"] + [m for m in MODEL_NAMES if m in classifiers]
+if args.modelo not in available_models:
+    print(f"Aviso: modelo '{args.modelo}' indisponível. Rode src/evaluation/testar_snn.py "
+          "para treinar e salvar os modelos. Usando o MediaPipe .task.")
+active_model = args.modelo if args.modelo in available_models else "task"
 
 recognized_text = ""  # texto acumulado com letras
 last_seen_token = None  # ultimo token visto
@@ -118,6 +159,7 @@ def draw_help_modal(frame):
     shortcuts = [
         ("[Enter]", "Falar legenda acumulada (TTS) e limpar texto"),
         ("[V]", "Alternar modo de voz (Manual <-> Automático)"),
+        ("[M]", "Trocar o modelo de classificação (.task, SNN, RF, SVM)"),
         ("[+] / [=]", "Aumentar limiar de confiança (+5%)"),
         ("[-] / [_]", "Diminuir limiar de confiança (-5%)"),
         ("[C]", "Limpar a legenda acumulada"),
@@ -200,6 +242,8 @@ print("Atalhos disponíveis na janela:")
 print("  [H]        : Abrir / Fechar Manual de Atalhos (Pop-up)")
 print("  [Enter]    : Falar a legenda acumulada (TTS) e limpar")
 print("  [V]        : Alternar modo de voz (Manual [Enter] <-> Automático)")
+print("  [M]        : Trocar classificador (" + ", ".join(MODEL_NAMES[m] for m in available_models) + ")")
+print(f"Classificador ativo: {MODEL_NAMES[active_model]}")
 print("  [+] ou [=] : Aumentar limiar de confiança (+5%)")
 print("  [-] ou [_] : Diminuir limiar de confiança (-5%)")
 print("  [C]        : Limpar legenda acumulada")
@@ -300,11 +344,19 @@ while cap.isOpened():
     if not result.hand_landmarks:
         last_seen_token = None
 
+    # Classificar a letra com o modelo ativo
+    top_label, top_score = None, 0.0
+    if active_model in classifiers and result.hand_landmarks:
+        # SNN, Random Forest ou SVM recebem os 21 landmarks que o MediaPipe acabou de extrair
+        top_label, top_score = classifiers[active_model].prever(result.hand_landmarks[0])
+    elif active_model == "task" and result.gestures:
+        top_label = result.gestures[0][0].category_name
+        top_score = result.gestures[0][0].score
+
     # Processar os gestos reconhecidos (pausa a digitação na legenda se o menu de ajuda estiver aberto)
-    if result.gestures and not show_help:
-        top_gesture = result.gestures[0][0]
-        label = top_gesture.category_name
-        score = top_gesture.score
+    if top_label is not None and not show_help:
+        label = top_label
+        score = top_score
 
         if label and label.lower() != "none":
             gesture_detected = True
@@ -353,7 +405,8 @@ while cap.isOpened():
         label_color = COLOR_SILVER
 
     thresh_text = f"Limiar: {threshold_percent}% [+/-]"
-    sub_left = "Reconhecimento ativo" if not show_help else "MODO AJUDA ABERTO"
+    model_name = MODEL_NAMES[active_model]
+    sub_left = f"Reconhecimento ativo  |  Modelo: {model_name} [M]" if not show_help else "MODO AJUDA ABERTO"
     top_shortcuts = "[H] Manual de Atalhos  |  [C] Limpar  |  [Q] Sair"
 
     if USE_PIL_FONT:
@@ -459,6 +512,14 @@ while cap.isOpened():
             last_legend_update_time = 0.0
         else:
             print("Legenda vazia para falar.")
+    elif key in (ord('m'), ord('M')):  # Passar para o próximo classificador disponível
+        if len(available_models) == 1:
+            print("Só o MediaPipe .task está disponível: rode src/evaluation/testar_snn.py para treinar os outros.")
+        else:
+            next_index = (available_models.index(active_model) + 1) % len(available_models)
+            active_model = available_models[next_index]
+            last_seen_token = None
+            print(f"Classificador alternado para: {MODEL_NAMES[active_model]}")
     elif key in (ord('v'), ord('V')):  # Alternar entre modo Manual e Automático
         AUTO_SPEAK = not AUTO_SPEAK
         mode_str = f"AUTOMÁTICO (fala após {LEGEND_CLEAR_SECONDS}s de inatividade)" if AUTO_SPEAK else "MANUAL (fala apenas ao teclar Enter)"

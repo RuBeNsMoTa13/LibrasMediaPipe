@@ -174,6 +174,10 @@ Executa a visão computacional localmente com síntese de voz (TTS) e buffer de 
 python src/desktop/detectar_libras.py
 ```
 * **Controles:** Posicione a mão em frente à câmera com boa iluminação. Pressione `q` para sair.
+* **Trocar de classificador na webcam:** a tecla `M` passa por MediaPipe `.task` → SNN → Random Forest → SVM, e a barra superior mostra o modelo ativo. Nos três últimos, o MediaPipe só extrai os landmarks e o modelo salvo em `models/` (`snn_libras.pt`, `rf_libras.pkl`, `svm_libras.pkl`) classifica a letra em cada frame. A SNN precisa de `pip install torch snntorch`; Random Forest e SVM precisam de `pip install scikit-learn`. Para já abrir num modelo, use `--modelo task|snn|rf|svm`:
+  ```powershell
+  python src/desktop/detectar_libras.py --modelo snn
+  ```
 
 ### 2. Aplicação Web no Navegador (Local ou Cloud)
 Online: <https://rubensmota13-librasmediapipe.static.hf.space>
@@ -191,6 +195,12 @@ python -m http.server
   Extrai os 21 landmarks dos datasets de treino e teste e gera os valores formatados para tabela LaTeX:
   ```powershell
   python src/evaluation/comparar_modelos.py
+  ```
+
+* **Spiking Neural Network (SNN) vs. Random Forest vs. SVM:**
+  Treina uma SNN com neurônios LIF (snnTorch) sobre os mesmos 63 landmarks, compara com Random Forest e SVM e salva os três modelos em `models/` para o app da webcam. Precisa de `pip install torch snntorch scikit-learn`; os landmarks ficam em cache em `results/tables/landmarks_libras.npz`:
+  ```powershell
+  python src/evaluation/testar_snn.py
   ```
 
 * **Matriz de Confusão e Relatório de Classificação:**
