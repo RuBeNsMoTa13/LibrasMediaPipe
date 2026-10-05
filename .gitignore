@@ -22,5 +22,6 @@ desktop.ini
 .vscode/
 .idea/
 
-# Cache de landmarks gerado por src/evaluation/testar_snn.py
+# Caches de landmarks gerados por src/evaluation/testar_snn.py
 results/tables/landmarks_libras.npz
+results/tables/resumo_libras.npz

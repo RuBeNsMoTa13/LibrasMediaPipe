@@ -10,15 +10,14 @@ Gráficos salvos em results/figures/:
   - comparacao_modelos.png         acurácia, precisão, recall e F1 dos quatro modelos
   - f1_por_letra.png               F1 de cada letra em cada modelo (mapa de calor)
   - matriz_confusao_rf.png / _svm.png / _snn.png
-  - rf_importancia_landmarks.png   quanto cada ponto da mão pesa no Random Forest
 
 Todos os modelos são avaliados nas MESMAS fotos de teste: as de data/libras/test
-em que o MediaPipe encontrou uma mão. O treino usa o cache de landmarks criado por
-testar_snn.py (results/tables/landmarks_libras.npz) e repete a mesma receita:
-features normalizadas, mãos espelhadas, mesmas sementes.
+em que o MediaPipe encontrou uma mão. RF, SVM e SNN usam o mesmo resumo de 128
+números da mão que o .task (src/classificadores/resumo.py) e repetem a receita de
+testar_snn.py: mãos espelhadas, mesma padronização, mesmas sementes.
 
 Uso: python src/evaluation/graficos_modelos.py
-Dependências: pip install torch snntorch scikit-learn matplotlib seaborn mediapipe opencv-python
+Dependências: pip install torch snntorch scikit-learn matplotlib seaborn mediapipe opencv-python ai-edge-litert
 """
 import os
 import sys
@@ -32,6 +31,8 @@ import torch
 from snntorch import functional as SF
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                              f1_score, confusion_matrix)
 
@@ -41,13 +42,11 @@ warnings.filterwarnings("ignore")
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 PASTA_TREINO = ROOT_DIR / "data" / "libras" / "train"
 PASTA_TESTE = ROOT_DIR / "data" / "libras" / "test"
-MODELO = ROOT_DIR / "models" / "gesture_recognizer.task"
-CACHE = ROOT_DIR / "results" / "tables" / "landmarks_libras.npz"
 SAIDA = ROOT_DIR / "results" / "figures"
 SAIDA.mkdir(parents=True, exist_ok=True)
 
 sys.path.insert(0, str(ROOT_DIR / "src"))
-from classificadores.landmarks import normalizar, espelhar  # noqa: E402
+from classificadores.resumo import carregar_dados, espelhar, resumir  # noqa: E402
 from classificadores.snn import SNN  # noqa: E402
 
 EPOCAS = 50
@@ -73,13 +72,6 @@ plt.rcParams.update({
     "legend.frameon": False, "font.size": 11,
 })
 
-NOMES_LANDMARKS = [
-    "Punho", "Polegar 1", "Polegar 2", "Polegar 3", "Polegar ponta",
-    "Indicador 1", "Indicador 2", "Indicador 3", "Indicador ponta",
-    "Médio 1", "Médio 2", "Médio 3", "Médio ponta",
-    "Anelar 1", "Anelar 2", "Anelar 3", "Anelar ponta",
-    "Mínimo 1", "Mínimo 2", "Mínimo 3", "Mínimo ponta",
-]
 
 
 def salvar(nome):
@@ -90,48 +82,9 @@ def salvar(nome):
     print(f"  salvo: {caminho.relative_to(ROOT_DIR)}")
 
 
-# --- 2. TESTE: MEDIAPIPE NAS FOTOS (previsão + landmarks da mesma foto) ---
-def avaliar_teste_com_mediapipe():
-    import cv2
-    import mediapipe as mp
-    from mediapipe.tasks import python
-    from mediapipe.tasks.python import vision
-
-    options = vision.GestureRecognizerOptions(
-        base_options=python.BaseOptions(model_asset_path=str(MODELO)),
-        running_mode=vision.RunningMode.IMAGE,
-    )
-    recognizer = vision.GestureRecognizer.create_from_options(options)
-
-    X, y, pred_mp = [], [], []
-    total_por_letra, detectadas_por_letra = {}, {}
-    for letra in sorted(os.listdir(PASTA_TESTE)):
-        pasta = PASTA_TESTE / letra
-        if not pasta.is_dir():
-            continue
-        letra = letra.upper()
-        total_por_letra[letra] = detectadas_por_letra[letra] = 0
-        for nome in sorted(os.listdir(pasta)):
-            img = cv2.imread(str(pasta / nome))
-            if img is None:
-                continue
-            total_por_letra[letra] += 1
-            res = recognizer.recognize(mp.Image(image_format=mp.ImageFormat.SRGB,
-                                                data=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)))
-            if not res.hand_landmarks:
-                continue
-            detectadas_por_letra[letra] += 1
-            X.append([c for lm in res.hand_landmarks[0] for c in (lm.x, lm.y, lm.z)])
-            y.append(letra)
-            pred_mp.append(res.gestures[0][0].category_name.upper() if res.gestures else "NENHUM")
-    recognizer.close()
-    return (np.array(X, dtype=np.float32), np.array(y), np.array(pred_mp),
-            total_por_letra, detectadas_por_letra)
-
-
 # --- 3. SNN COM HISTÓRICO POR ÉPOCA ---
 def treinar_snn_com_historico(X_treino, y_treino, X_teste, y_teste, num_classes):
-    modelo = SNN(saidas=num_classes)
+    modelo = SNN(entradas=X_treino.shape[1], saidas=num_classes)
     otimizador = torch.optim.Adam(modelo.parameters(), lr=LR)
     perda_fn = SF.mse_count_loss(correct_rate=0.8, incorrect_rate=0.1)
     Xt, yt = torch.from_numpy(X_treino), torch.from_numpy(y_treino).long()
@@ -270,52 +223,39 @@ def grafico_matriz(y_true, y_pred, classes, nome, arquivo):
     salvar(arquivo)
 
 
-def grafico_importancia_rf(rf):
-    # 63 features = (x, y, z) de 21 pontos; soma as três coordenadas de cada ponto.
-    # O punho fica de fora: a normalização o coloca sempre na origem (importância 0).
-    imp = rf.feature_importances_.reshape(21, 3).sum(axis=1) * 100
-    ordem = [i for i in np.argsort(imp) if i != 0]
-    plt.figure(figsize=(8, 7))
-    plt.barh([NOMES_LANDMARKS[i] for i in ordem], imp[ordem], 0.65, color="#eb6834")
-    for j, i in enumerate(ordem):
-        plt.text(imp[i] + 0.1, j, f"{imp[i]:.1f}%", va="center", fontsize=8, color=TINTA_2)
-    plt.grid(axis="y", visible=False)
-    plt.xlabel("Importância no Random Forest (%)")
-    plt.title("Pontos da mão que mais pesam na decisão")
-    salvar("rf_importancia_landmarks.png")
-
-
 # --- 5. EXECUÇÃO ---
-if not CACHE.exists():
-    sys.exit(f"Cache {CACHE} não encontrado. Rode antes: python src/evaluation/testar_snn.py")
-d = np.load(CACHE)
-X_treino, y_treino = d["X_treino"], d["y_treino"]
-classes = sorted(set(y_treino))
+treino, teste = carregar_dados()
+classes = sorted(set(treino["y"]))
 indice = {c: i for i, c in enumerate(classes)}
+y_teste = teste["y"]
+pred_mp = teste["pred_task"]
+total = dict(zip(teste["letras"], teste["total"]))
+detectadas = {c: int((y_teste == c).sum()) for c in classes}
+print(f"  mãos detectadas no teste: {len(y_teste)} de {sum(total.values())} fotos")
 
-print("Rodando o MediaPipe nas fotos de teste...")
-X_teste, y_teste, pred_mp, total, detectadas = avaliar_teste_com_mediapipe()
-print(f"  mãos detectadas: {len(X_teste)} de {sum(total.values())} fotos")
-
-X_treino_n = normalizar(X_treino)
-X_teste_n = normalizar(X_teste)
-y_treino_i = np.array([indice[c] for c in y_treino])
+y_treino_i = np.array([indice[c] for c in treino["y"]])
 y_teste_i = np.array([indice[c] for c in y_teste])
-X_treino_aug = np.concatenate([X_treino_n, espelhar(X_treino_n)])
+X_treino_aug = np.concatenate([
+    treino["resumo"], resumir(*espelhar(treino["pontos"], treino["mundo"], treino["direita"]))])
 y_treino_aug = np.concatenate([y_treino_i, y_treino_i])
+X_teste = teste["resumo"]
+media, desvio = X_treino_aug.mean(0), X_treino_aug.std(0) + 1e-6
+def padronizar(X):
+    return ((X - media) / desvio).astype(np.float32)
 
 print("Treinando a SNN...")
-pred_snn, hist = treinar_snn_com_historico(X_treino_aug, y_treino_aug, X_teste_n,
-                                           y_teste_i, len(classes))
+pred_snn, hist = treinar_snn_com_historico(padronizar(X_treino_aug), y_treino_aug,
+                                           padronizar(X_teste), y_teste_i, len(classes))
 print("Treinando Random Forest e SVM...")
 rf = RandomForestClassifier(n_estimators=100, random_state=SEED).fit(X_treino_aug, y_treino_aug)
-svm = SVC(kernel="rbf", random_state=SEED).fit(X_treino_aug, y_treino_aug)
+svm = make_pipeline(StandardScaler(), SVC(kernel="rbf", random_state=SEED))
+svm.fit(X_treino_aug, y_treino_aug)
 
 para_letra = np.array(classes)
 previsoes = {
     "MediaPipe": pred_mp,
-    "Random Forest": para_letra[rf.predict(X_teste_n)],
-    "SVM": para_letra[svm.predict(X_teste_n)],
+    "Random Forest": para_letra[rf.predict(X_teste)],
+    "SVM": para_letra[svm.predict(X_teste)],
     "SNN": para_letra[pred_snn],
 }
 resultados = {m: metricas(y_teste, p) for m, p in previsoes.items()}
@@ -334,4 +274,3 @@ for nome, arquivo in [("Random Forest", "matriz_confusao_rf.png"),
                       ("SVM", "matriz_confusao_svm.png"),
                       ("SNN", "matriz_confusao_snn.png")]:
     grafico_matriz(y_teste, previsoes[nome], classes, nome, arquivo)
-grafico_importancia_rf(rf)
