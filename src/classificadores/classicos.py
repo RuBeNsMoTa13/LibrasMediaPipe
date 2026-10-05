@@ -1,5 +1,6 @@
 """
-Random Forest e SVM treinados sobre os landmarks normalizados.
+Random Forest e SVM treinados sobre o resumo de 128 números da mão
+(src/classificadores/resumo.py), o mesmo que o .task usa.
 
 Os modelos são treinados e salvos por src/evaluation/testar_snn.py e
 carregados por src/desktop/detectar_libras.py (opção --modelo rf/svm ou tecla M).
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from classificadores.landmarks import normalizar, para_array
+from classificadores.resumo import carregar_rede, resumir_resultado
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 CAMINHO_RF = ROOT_DIR / "models" / "rf_libras.pkl"
@@ -27,14 +28,15 @@ class ClassificadorClassico:
     """Classifica uma mão por vez com um modelo do scikit-learn salvo em models/."""
 
     def __init__(self, caminho):
+        carregar_rede()  # falha já ao abrir o app se ai-edge-litert faltar
         with open(caminho, "rb") as f:
             dados = pickle.load(f)
         self.modelo = dados["modelo"]
         self.classes = dados["classes"]
 
-    def prever(self, hand_landmarks):
-        """Recebe os 21 landmarks do MediaPipe e devolve (letra, confiança)."""
-        x = normalizar(para_array(hand_landmarks))
+    def prever(self, resultado):
+        """Recebe o resultado do MediaPipe de um frame e devolve (letra, confiança)."""
+        x = resumir_resultado(resultado)
         probabilidades = self.modelo.predict_proba(x)[0]
         indice = int(np.argmax(probabilidades))
         return self.classes[int(self.modelo.classes_[indice])], float(probabilidades[indice])

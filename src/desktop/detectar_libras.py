@@ -15,7 +15,8 @@ MODEL_PATH = str(ROOT_DIR / 'models' / 'gesture_recognizer.task')
 
 # --- ESCOLHA DO CLASSIFICADOR ---
 # task: o gesture_recognizer.task classifica a letra (padrão)
-# snn, rf, svm: o MediaPipe só extrai os landmarks e o modelo escolhido classifica.
+# snn, rf, svm: o MediaPipe extrai a mão, a rede de dentro do .task faz o resumo de
+#   128 números (classificadores/resumo.py) e o modelo escolhido classifica.
 #   Os três são treinados e salvos em models/ por src/evaluation/testar_snn.py.
 # A tecla M passa pelos modelos disponíveis nesta ordem.
 MODEL_NAMES = {
@@ -30,20 +31,20 @@ parser.add_argument("--modelo", choices=list(MODEL_NAMES), default="task",
 args = parser.parse_args()
 
 sys.path.insert(0, str(ROOT_DIR / 'src'))
-classifiers = {}  # modelos de landmarks carregados: nome -> objeto com prever(hand_landmarks)
+classifiers = {}  # modelos carregados: nome -> objeto com prever(resultado do MediaPipe)
 try:
     from classificadores.snn import ClassificadorSNN, CAMINHO_SNN
     if CAMINHO_SNN.exists():
         classifiers["snn"] = ClassificadorSNN()
 except ImportError as e:
-    print("Aviso: SNN indisponível (pip install torch snntorch):", e)
+    print("Aviso: SNN indisponível (pip install torch snntorch ai-edge-litert):", e)
 try:
     from classificadores.classicos import ClassificadorClassico, CAMINHO_RF, CAMINHO_SVM
     for key, path in (("rf", CAMINHO_RF), ("svm", CAMINHO_SVM)):
         if path.exists():
             classifiers[key] = ClassificadorClassico(path)
 except ImportError as e:
-    print("Aviso: Random Forest e SVM indisponíveis (pip install scikit-learn):", e)
+    print("Aviso: Random Forest e SVM indisponíveis (pip install scikit-learn ai-edge-litert):", e)
 
 available_models = ["task"] + [m for m in MODEL_NAMES if m in classifiers]
 if args.modelo not in available_models:
@@ -348,7 +349,7 @@ while cap.isOpened():
     top_label, top_score = None, 0.0
     if active_model in classifiers and result.hand_landmarks:
         # SNN, Random Forest ou SVM recebem os 21 landmarks que o MediaPipe acabou de extrair
-        top_label, top_score = classifiers[active_model].prever(result.hand_landmarks[0])
+        top_label, top_score = classifiers[active_model].prever(result)
     elif active_model == "task" and result.gestures:
         top_label = result.gestures[0][0].category_name
         top_score = result.gestures[0][0].score
