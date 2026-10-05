@@ -11,7 +11,7 @@ from pathlib import Path
 
 # --- 1. CONFIGURAÇÕES ---
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-PASTA_TESTE = str(ROOT_DIR / "data" / "teste_libras")
+PASTA_TESTE = str(ROOT_DIR / "data" / "libras" / "test")
 MODELO = str(ROOT_DIR / "models" / "gesture_recognizer.task")
 OUTPUT_FIGURA = str(ROOT_DIR / "results" / "figures" / "matriz_de_confusao.png")
 

@@ -95,10 +95,9 @@ LibrasMediaPipe/
 ├── .gitignore                          # Exclusões de arquivos de compilação e cache
 │
 ├── data/                               # Datasets estruturados
-│   ├── libras/                         # Treino e teste para ML clássico (A..Y)
-│   │   ├── train/
-│   │   └── test/
-│   └── teste_libras/ (A..Y)            # Imagens para validação do MediaPipe Tasks
+│   └── libras/                         # Treino e teste (A..Y), usado por todos os modelos
+│       ├── train/
+│       └── test/
 │
 ├── models/                             # Modelos e pesos compilados
 │   └── gesture_recognizer.task         # Modelo do MediaPipe Tasks
