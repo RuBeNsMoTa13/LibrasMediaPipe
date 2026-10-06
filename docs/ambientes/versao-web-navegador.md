@@ -1,6 +1,7 @@
 <!--
-Data/Hora: 2026-10-04 19:10 (UTC-3)
-Branch: main
+Data/Hora: 2026-10-06 19:30 (UTC-3)
+Branch: claude/auditoria-pipeline-3l8ukb
+Commit: c209803
 Status: Atualizado
 -->
 
@@ -8,7 +9,7 @@ Status: Atualizado
 
 A versão web do reconhecimento do alfabeto manual de Libras passou a rodar inteiramente no navegador de quem acessa, e por isso deixou de travar. Antes, cada imagem da webcam era enviada ao servidor do Hugging Face, processada pelo MediaPipe em Python e devolvida pela rede. Agora o mesmo modelo treinado (`models/gesture_recognizer.task`) é executado localmente com a biblioteca JavaScript do MediaPipe, e o vídeo nunca sai do computador do usuário.
 
-O modelo não mudou entre as duas versões. O que mudou foi **onde a inferência acontece**: no servidor (arquitetura cliente-servidor) ou no próprio dispositivo (inferência no cliente, *client-side*). Esta é a implementação da **Proposta B** descrita em [local-vs-huggingface.md](local-vs-huggingface.md).
+O modelo não mudou entre as duas versões. O que mudou foi **onde a inferência acontece**: no servidor (arquitetura cliente-servidor) ou no próprio dispositivo (inferência no cliente, *client-side*). Essa mudança põe em prática a proposta de inferência no cliente levantada na análise de latência da versão antiga, cujo resumo está na seção 1.
 
 * **Aplicação publicada:** <https://rubensmota13-librasmediapipe.static.hf.space>
 * **Código:** [`web/index.html`](../../web/index.html)
@@ -17,7 +18,7 @@ O modelo não mudou entre as duas versões. O que mudou foi **onde a inferência
 
 ## 1. Versão antiga: Gradio no servidor
 
-A primeira versão web era um Space Docker com uma interface Gradio ([`src/web/app.py`](../../src/web/app.py)). O navegador capturava a webcam e enviava os frames ao servidor, onde o MediaPipe em Python reconhecia o gesto, o OpenCV desenhava os pontos da mão e a imagem anotada voltava para a tela. O reconhecimento chegava a ficar cerca de 1,5 s atrasado em relação ao gesto, por quatro motivos que se somam:
+A primeira versão web era um Space Docker com uma interface Gradio, escrita em `src/web/app.py`. Esse arquivo foi removido do repositório e continua disponível no histórico do git. O navegador capturava a webcam e enviava os frames ao servidor, onde o MediaPipe em Python reconhecia o gesto, o OpenCV desenhava os pontos da mão e a imagem anotada voltava para a tela. O reconhecimento chegava a ficar cerca de 1,5 s atrasado em relação ao gesto, por quatro motivos que se somam:
 
 1. **Poucos frames enviados.** O evento `input_video.stream(...)` usa o intervalo padrão do Gradio (`stream_every` de 0,5 s), ou seja, no máximo 2 frames por segundo chegam ao servidor.
 2. **Descarte de frames.** O código usa `PROCESS_EVERY_N = 3`, uma otimização pensada para a câmera local a 30 FPS. Com apenas 2 FPS de entrada, o modelo passa a rodar uma vez a cada 1,5 s.
@@ -93,7 +94,7 @@ No Space, o navegador baixa o `.task` (8,4 MB) direto do repositório do Space; 
 Dois cuidados ficaram registrados:
 
 * No GitHub, o `.task` está no Git LFS e aparece como um ponteiro de 132 bytes. O Space precisa do arquivo real, enviado pela API do Hugging Face a partir do computador local.
-* O Space ainda guarda os arquivos da versão Docker (`app.py`, `Dockerfile`, `apt.txt`). Eles não afetam o site estático, e o `src/web/app.py` continua no repositório como registro da primeira abordagem.
+* O Space ainda guarda os arquivos da versão Docker (`app.py`, `Dockerfile`, `apt.txt`). Eles não afetam o site estático. No repositório do GitHub, o `src/web/app.py` e o `Dockerfile` foram removidos e continuam no histórico do git como registro da primeira abordagem.
 
 ### Como testar localmente
 
