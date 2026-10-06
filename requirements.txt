@@ -1,6 +1,18 @@
-gradio
+# App desktop (src/desktop/detectar_libras.py) e extração dos landmarks
 mediapipe
-opencv-python-headless
+opencv-python
 numpy
-huggingface-hub
+pillow
 pyttsx3
+
+# Resumo de 128 números da mão, lido de dentro do .task (src/classificadores/resumo.py)
+ai-edge-litert
+
+# Random Forest, SVM e SNN (src/treino/treinar_modelos.py e a tecla M do app)
+scikit-learn
+torch
+snntorch
+
+# Gráficos (src/avaliacao/)
+matplotlib
+seaborn

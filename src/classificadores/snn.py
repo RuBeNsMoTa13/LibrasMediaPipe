@@ -3,7 +3,7 @@ Spiking Neural Network (SNN) que classifica a letra a partir do resumo de 128
 números da mão (src/classificadores/resumo.py), o mesmo que o .task usa.
 
 Usado por:
-  - src/evaluation/testar_snn.py: treina, avalia e salva models/snn_libras.pt
+  - src/treino/treinar_modelos.py: treina, avalia e salva models/snn_libras.pt
   - src/desktop/detectar_libras.py: carrega o modelo salvo e classifica cada
     frame da webcam (opção --modelo snn ou tecla M)
 

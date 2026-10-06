@@ -2,7 +2,7 @@
 Random Forest e SVM treinados sobre o resumo de 128 números da mão
 (src/classificadores/resumo.py), o mesmo que o .task usa.
 
-Os modelos são treinados e salvos por src/evaluation/testar_snn.py e
+Os modelos são treinados e salvos por src/treino/treinar_modelos.py e
 carregados por src/desktop/detectar_libras.py (opção --modelo rf/svm ou tecla M).
 Dependência: scikit-learn (não precisa de torch).
 """

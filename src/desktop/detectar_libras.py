@@ -17,7 +17,7 @@ MODEL_PATH = str(ROOT_DIR / 'models' / 'gesture_recognizer.task')
 # task: o gesture_recognizer.task classifica a letra (padrão)
 # snn, rf, svm: o MediaPipe extrai a mão, a rede de dentro do .task faz o resumo de
 #   128 números (classificadores/resumo.py) e o modelo escolhido classifica.
-#   Os três são treinados e salvos em models/ por src/evaluation/testar_snn.py.
+#   Os três são treinados e salvos em models/ por src/treino/treinar_modelos.py.
 # A tecla M passa pelos modelos disponíveis nesta ordem.
 MODEL_NAMES = {
     "task": "MediaPipe .task",
@@ -48,7 +48,7 @@ except ImportError as e:
 
 available_models = ["task"] + [m for m in MODEL_NAMES if m in classifiers]
 if args.modelo not in available_models:
-    print(f"Aviso: modelo '{args.modelo}' indisponível. Rode src/evaluation/testar_snn.py "
+    print(f"Aviso: modelo '{args.modelo}' indisponível. Rode src/treino/treinar_modelos.py "
           "para treinar e salvar os modelos. Usando o MediaPipe .task.")
 active_model = args.modelo if args.modelo in available_models else "task"
 
@@ -515,7 +515,7 @@ while cap.isOpened():
             print("Legenda vazia para falar.")
     elif key in (ord('m'), ord('M')):  # Passar para o próximo classificador disponível
         if len(available_models) == 1:
-            print("Só o MediaPipe .task está disponível: rode src/evaluation/testar_snn.py para treinar os outros.")
+            print("Só o MediaPipe .task está disponível: rode src/treino/treinar_modelos.py para treinar os outros.")
         else:
             next_index = (available_models.index(active_model) + 1) % len(available_models)
             active_model = available_models[next_index]
