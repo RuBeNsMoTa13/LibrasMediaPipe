@@ -71,8 +71,12 @@ LibrasMediaPipe/
 │   ├── figures/                        # Gráficos e matriz de confusão
 │   │   ├── grafico_acuracia.png
 │   │   ├── grafico_perda.png
-│   │   └── matriz_de_confusao.png
-│   └── tables/                         # Relatórios tabulares
+│   │   ├── matriz_de_confusao.png      # Matriz do .task
+│   │   ├── matriz_confusao_{rf,svm,snn}.png
+│   │   ├── snn_curva_{perda,acuracia}.png
+│   │   ├── comparacao_modelos.png / f1_por_letra.png
+│   │   └── distribuicao_amostras.png / deteccao_maos_por_letra.png
+│   └── tables/                         # Caches de landmarks (.npz)
 │
 ├── src/                                # Código-fonte do projeto
 │   ├── desktop/                        # Aplicação local desktop
@@ -82,7 +86,9 @@ LibrasMediaPipe/
 │   └── evaluation/                     # Benchmarks e avaliação científica
 │       ├── comparar_modelos.py         # Benchmark: Random Forest vs SVM (LaTeX)
 │       ├── gerar_metricas.py           # Relatório de classificação e matriz
-│       └── graficos.py                 # Curvas de aprendizado (acurácia e loss)
+│       ├── graficos.py                 # Curvas de aprendizado (acurácia e loss)
+│       ├── testar_snn.py               # Treina e salva RF, SVM e SNN
+│       └── graficos_modelos.py         # Gráficos de comparação dos 4 modelos
 │
 ├── docs/                               # Documentação técnica e auditoria
 │   ├── README.md                       # Índice navegável de documentação
@@ -118,6 +124,12 @@ python src/evaluation/gerar_metricas.py
 
 # Plota as curvas de acurácia e perda do treinamento:
 python src/evaluation/graficos.py
+
+# Treina RF, SVM e SNN e salva em models/:
+python src/evaluation/testar_snn.py
+
+# Gera matrizes de RF/SVM/SNN, curvas da SNN, comparação e F1 por letra:
+python src/evaluation/graficos_modelos.py
 ```
 
 

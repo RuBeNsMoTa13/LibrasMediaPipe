@@ -79,7 +79,7 @@ O projeto foi projetado com uma arquitetura dual para atender a dois propósitos
 2. **Extração de Atributos:** O MediaPipe Hand Landmarker identifica 21 coordenadas tridimensionais da mão ($[x_0, y_0, z_0, ..., x_{20}, y_{20}, z_{20}]$).
 3. **Classificação:**
    * **MediaPipe Gesture Recognizer:** Modelo pré-compilado (`gesture_recognizer.task`) treinado especificamente nas 21 letras da LIBRAS.
-   * **Modelos Clássicos Supervisionados:** Extração tabular das 63 coordenadas para benchmark científico com **Random Forest** (100 árvores) e **Support Vector Machine (SVM com kernel RBF)** via Scikit-Learn.
+   * **Random Forest, SVM e Spiking Neural Network (SNN):** classificam o mesmo "resumo" de 128 números da mão que o `.task` usa por dentro (a rede `gesture_embedder.tflite`, lida de dentro do `.task` por `src/classificadores/resumo.py`). Random Forest (100 árvores) e SVM (kernel RBF) via Scikit-Learn; SNN com neurônios LIF via snnTorch.
 4. **Pós-processamento e Acessibilidade:** Filtragem por limiar de confiança ($\ge 75\%$), buffer de caracteres e sintetização de fala.
 
 ---
@@ -101,19 +101,34 @@ LibrasMediaPipe/
 │   └── teste_libras/ (A..Y)            # Imagens para validação do MediaPipe Tasks
 │
 ├── models/                             # Modelos e pesos compilados
-│   └── gesture_recognizer.task         # Modelo do MediaPipe Tasks
+│   ├── gesture_recognizer.task         # Modelo do MediaPipe Tasks
+│   ├── rf_libras.pkl / svm_libras.pkl  # Random Forest e SVM (testar_snn.py)
+│   └── snn_libras.pt                   # Spiking Neural Network (testar_snn.py)
 │
 ├── results/                            # Saídas científicas geradas
-│   ├── figures/                        # Gráficos e matriz de confusão
-│   │   ├── grafico_acuracia.png
-│   │   ├── grafico_perda.png
-│   │   └── matriz_de_confusao.png
-│   └── tables/                         # Relatórios tabulares
+│   ├── figures/                        # Gráficos (ver "Resultados e Benchmarks")
+│   │   ├── grafico_acuracia.png        # Treino do .task (Colab): acurácia por época
+│   │   ├── grafico_perda.png           # Treino do .task (Colab): perda por época
+│   │   ├── matriz_de_confusao.png      # Matriz do .task
+│   │   ├── matriz_confusao_rf.png      # Matriz do Random Forest
+│   │   ├── matriz_confusao_svm.png     # Matriz do SVM
+│   │   ├── matriz_confusao_snn.png     # Matriz da SNN
+│   │   ├── snn_curva_perda.png         # Perda da SNN por época
+│   │   ├── snn_curva_acuracia.png      # Acurácia da SNN (treino e teste) por época
+│   │   ├── comparacao_modelos.png      # Acurácia, precisão, recall e F1 dos 4 modelos
+│   │   ├── f1_por_letra.png            # F1 de cada letra em cada modelo
+│   │   ├── distribuicao_amostras.png   # Imagens por letra no treino e no teste
+│   │   └── deteccao_maos_por_letra.png # % de fotos em que o MediaPipe achou a mão
+│   └── tables/                         # Caches de landmarks (.npz)
 │
 ├── web/                                # Aplicação web no navegador (Space estático)
 │   └── index.html                      # MediaPipe JS + webcam + buffer + voz
 │
 ├── src/                                # Código-fonte da aplicação
+│   ├── classificadores/                # RF, SVM e SNN usados no app
+│   │   ├── resumo.py                   # Resumo de 128 números da mão (rede do .task)
+│   │   ├── classicos.py                # Random Forest e SVM
+│   │   └── snn.py                      # Spiking Neural Network
 │   ├── desktop/                        # Aplicação local nativa
 │   │   └── detectar_libras.py          # OpenCV + buffer de digitação + TTS
 │   ├── web/                            # Primeira versão web (legado)
@@ -121,7 +136,9 @@ LibrasMediaPipe/
 │   └── evaluation/                     # Scripts de avaliação e benchmark
 │       ├── comparar_modelos.py         # Benchmark: Random Forest vs SVM (LaTeX)
 │       ├── gerar_metricas.py           # Relatório de classificação e matriz
-│       └── graficos.py                 # Curvas de perda e acurácia por época
+│       ├── graficos.py                 # Curvas de perda e acurácia por época
+│       ├── testar_snn.py               # Treina e salva RF, SVM e SNN
+│       └── graficos_modelos.py         # Gráficos de comparação dos 4 modelos
 │
 ├── docs/                               # Governança e auditoria técnica do TCC
 │   ├── README.md                       # Índice de documentação técnica
@@ -198,9 +215,15 @@ python -m http.server
   ```
 
 * **Spiking Neural Network (SNN) vs. Random Forest vs. SVM:**
-  Treina uma SNN com neurônios LIF (snnTorch) sobre os mesmos 63 landmarks, compara com Random Forest e SVM e salva os três modelos em `models/` para o app da webcam. Precisa de `pip install torch snntorch scikit-learn`; os landmarks ficam em cache em `results/tables/landmarks_libras.npz`:
+  Treina os três modelos sobre o resumo de 128 números da mão (o mesmo que o `.task` usa), imprime as métricas e salva os modelos em `models/` para o app da webcam. Precisa de `pip install torch snntorch scikit-learn ai-edge-litert`; os landmarks ficam em cache em `results/tables/resumo_libras.npz`:
   ```powershell
   python src/evaluation/testar_snn.py
+  ```
+
+* **Gráficos de comparação dos quatro modelos:**
+  Gera em `results/figures/` as matrizes de confusão de RF, SVM e SNN, as curvas da SNN, a comparação de métricas, o F1 por letra, a distribuição das amostras e a detecção de mãos por letra (lista completa em [Resultados e Benchmarks](#-resultados-e-benchmarks)):
+  ```powershell
+  python src/evaluation/graficos_modelos.py
   ```
 
 * **Matriz de Confusão e Relatório de Classificação:**
@@ -228,13 +251,34 @@ docker run -p 7860:7860 libras-mediapipe
 
 O pipeline científico do projeto permite comparar diretamente diferentes abordagens de aprendizado de máquina para o reconhecimento de gestos:
 
+Todos os modelos são avaliados nas mesmas fotos de `data/libras/test` em que o MediaPipe encontrou uma mão (valores gerados por `graficos_modelos.py`):
+
 | Modelo | Acurácia | Precisão Ponderada | Recall Ponderado | F1-Score |
 | :--- | :---: | :---: | :---: | :---: |
-| **MediaPipe Tasks (`gesture_recognizer.task`)** | Alta (tempo real) | Robusto | Robusto | Alta generalização |
-| **Random Forest (100 estimators)** | Avaliado via script | Avaliado via script | Avaliado via script | Avaliado via script |
-| **Support Vector Machine (SVM - RBF)** | Avaliado via script | Avaliado via script | Avaliado via script | Avaliado via script |
+| **MediaPipe Tasks (`gesture_recognizer.task`)** | 0,891 | 0,931 | 0,891 | 0,863 |
+| **Random Forest (100 árvores)** | 0,994 | 0,994 | 0,994 | 0,994 |
+| **Support Vector Machine (SVM - RBF)** | 0,982 | 0,986 | 0,982 | 0,983 |
+| **Spiking Neural Network (SNN - LIF)** | 0,990 | 0,991 | 0,990 | 0,990 |
 
-As matrizes de confusão e gráficos gerados encontram-se salvos no diretório [`results/figures/`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/results/figures).
+> **Atenção ao ler esses números:** as fotos de treino e de teste do dataset vêm dos mesmos vídeos e, aparentemente, da mesma pessoa, então o teste é muito parecido com o treino. Por isso RF, SVM e SNN ficam perto de 100% aqui, mas erram mais ao vivo com uma mão nova (por exemplo, U confundido com R ou V). Essas métricas medem o desempenho no dataset, não com um usuário novo.
+
+### Gráficos gerados
+
+Todos ficam em [`results/figures/`](results/figures).
+
+| Gráfico | O que mostra | Script |
+| :--- | :--- | :--- |
+| `grafico_acuracia.png` / `grafico_perda.png` | Acurácia e perda por época do treino do `.task` (Colab) | `graficos.py` |
+| `matriz_de_confusao.png` | Matriz de confusão do `.task` | `gerar_metricas.py` |
+| `matriz_confusao_rf.png` | Matriz de confusão do Random Forest | `graficos_modelos.py` |
+| `matriz_confusao_svm.png` | Matriz de confusão do SVM | `graficos_modelos.py` |
+| `matriz_confusao_snn.png` | Matriz de confusão da SNN | `graficos_modelos.py` |
+| `snn_curva_perda.png` | Perda da SNN a cada época | `graficos_modelos.py` |
+| `snn_curva_acuracia.png` | Acurácia da SNN no treino e no teste a cada época | `graficos_modelos.py` |
+| `comparacao_modelos.png` | Acurácia, precisão, recall e F1 dos quatro modelos lado a lado | `graficos_modelos.py` |
+| `f1_por_letra.png` | F1 de cada letra em cada modelo (mapa de calor) | `graficos_modelos.py` |
+| `distribuicao_amostras.png` | Quantidade de imagens por letra no treino e no teste | `graficos_modelos.py` |
+| `deteccao_maos_por_letra.png` | % das fotos de teste em que o MediaPipe encontrou a mão | `graficos_modelos.py` |
 
 ---
 

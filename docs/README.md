@@ -37,4 +37,6 @@ Bem-vindo ao índice central da documentação técnica do projeto de TCC **Libr
 * **Benchmark de Classificadores (LaTeX):** [`src/evaluation/comparar_modelos.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/evaluation/comparar_modelos.py)
 * **Matriz de Confusão e Relatório:** [`src/evaluation/gerar_metricas.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/evaluation/gerar_metricas.py)
 * **Curvas de Aprendizado (Loss / Acurácia):** [`src/evaluation/graficos.py`](file:///c:/Users/Rubens/Desktop/projetinhos/LibrasMediaPipe/src/evaluation/graficos.py)
+* **Treino de RF, SVM e SNN:** [`src/evaluation/testar_snn.py`](../src/evaluation/testar_snn.py)
+* **Gráficos de comparação dos 4 modelos** (matrizes de RF/SVM/SNN, curvas da SNN, métricas, F1 por letra, distribuição e detecção): [`src/evaluation/graficos_modelos.py`](../src/evaluation/graficos_modelos.py), lista completa no [README](../README.md#-resultados-e-benchmarks)
 
