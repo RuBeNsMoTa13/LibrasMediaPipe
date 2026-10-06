@@ -69,7 +69,7 @@ A versão nova elimina a rede do caminho de cada frame, e com isso as quatro cau
 
 Os testes foram feitos no Chromium, em um servidor de nuvem sem GPU, em 4 de outubro de 2026:
 
-* **Acurácia:** o modelo rodando no navegador acertou 267 de 315 imagens do conjunto `data/teste_libras` (85%), o que confirma que o `.task` funciona sem conversão.
+* **Acurácia:** o modelo rodando no navegador acertou 267 de 315 imagens do conjunto `data/libras/test` (85%), o que confirma que o `.task` funciona sem conversão.
 * **Velocidade:** com uma câmera simulada, a inferência levou 64 ms por frame, cerca de 15 FPS usando apenas a CPU. Em um computador com placa de vídeo o desempenho tende a ser maior, mas isso não foi medido.
 
 Mesmo no pior caso medido, são cerca de 15 reconhecimentos por segundo contra um a cada 1,5 s na versão antiga.

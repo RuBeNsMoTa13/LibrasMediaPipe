@@ -59,10 +59,9 @@ LibrasMediaPipe/
 ├── requirements.txt                    # Dependências Python do projeto
 │
 ├── data/                               # Datasets estruturados
-│   ├── libras/                         # Dataset de treino e teste de ML clássico
-│   │   ├── train/ (A..Y)
-│   │   └── test/ (A..Y)
-│   └── teste_libras/ (A..Y)            # Amostras para teste do gesture_recognizer.task
+│   └── libras/                         # Dataset de treino e teste (todos os modelos)
+│       ├── train/ (A..Y)
+│       └── test/ (A..Y)
 │
 ├── models/                             # Modelos e pesos de Machine Learning
 │   └── gesture_recognizer.task         # Modelo compilado MediaPipe Tasks
