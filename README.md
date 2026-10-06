@@ -61,17 +61,17 @@ O projeto tem duas versões do aplicativo, com os mesmos recursos de soletraçã
 
 1. **Aplicativo desktop (`src/desktop/detectar_libras.py`):**
    * Abre a webcam do computador com o OpenCV e mostra a letra reconhecida sobre o vídeo.
-   * **Troca de classificador ao vivo:** a tecla `M` alterna entre o MediaPipe `.task`, a SNN, o Random Forest e o SVM. Também é possível escolher na hora de abrir, com `--modelo task|snn|rf|svm`.
-   * **Soletração:** as letras são juntadas numa palavra, com um intervalo mínimo de 0,7 s entre uma letra e outra para não repetir a mesma letra várias vezes. Há teclas para inserir espaço e apagar.
+   * **Troca de classificador ao vivo:** a tecla `M` alterna entre o MediaPipe `.task`, a SNN, o Random Forest e o SVM, e a barra superior da janela mostra qual classificador está em uso. Também é possível escolher na hora de abrir, com `--modelo task|snn|rf|svm`.
+   * **Soletração:** as letras reconhecidas são juntadas numa palavra. A mesma letra não é repetida enquanto a mão continua fazendo o mesmo sinal; para repetir uma letra, tire a mão da câmera e mostre a letra de novo. Entre uma letra registrada e a seguinte, é preciso passar pelo menos 0,7 s. Há teclas para inserir espaço e apagar.
    * **Voz:** a palavra soletrada é falada pelo `pyttsx3`, que usa a voz instalada no sistema operacional. No modo manual a fala acontece ao teclar `Enter`; no modo automático (tecla `V`), depois de 5 s sem letras novas.
    * **Limiar de confiança:** o programa só aceita uma letra quando o classificador tem pelo menos 50% de certeza. Esse valor sobe e desce de 5 em 5% com as teclas `+` e `-`.
 
 2. **Aplicativo web no navegador (`web/index.html`):**
-   * Roda o mesmo `gesture_recognizer.task` direto no navegador, com a biblioteca `@mediapipe/tasks-vision` (WebAssembly e WebGL). Não existe servidor de inferência: o vídeo nunca sai do computador do usuário.
+   * Roda o mesmo `gesture_recognizer.task` direto no navegador, com a biblioteca `@mediapipe/tasks-vision` (WebAssembly e WebGL). Não existe servidor que faça o reconhecimento: o vídeo nunca sai do computador do usuário.
    * Tem a mesma soletração (0,7 s entre letras), o mesmo limiar ajustável (padrão 50%) e voz em português pela Web Speech API do navegador. Usa apenas o classificador `.task`.
    * Está publicado como Space estático no Hugging Face: <https://rubensmota13-librasmediapipe.static.hf.space>.
 
-> A primeira versão web, feita em Gradio dentro de um contêiner Docker, enviava cada quadro do vídeo para um servidor e por isso tinha cerca de 1,5 s de atraso; ela foi removida e substituída pela versão no navegador, explicada em [docs/ambientes/versao-web-navegador.md](docs/ambientes/versao-web-navegador.md).
+> A versão web anterior, feita em Gradio (publicada primeiro com o SDK Gradio do Hugging Face e, a partir de 26/05/2026, num contêiner Docker), enviava cada quadro do vídeo para um servidor e por isso tinha cerca de 1,5 s de atraso; ela foi removida e substituída pela versão no navegador, explicada em [docs/ambientes/versao-web-navegador.md](docs/ambientes/versao-web-navegador.md).
 
 ---
 
@@ -101,6 +101,8 @@ O caminho de cada quadro da webcam, do vídeo até a voz, é este:
                               Limiar de confiança -> soletração -> voz
 ```
 
+No desenho, a **cabeça** do `.task` é a parte final desse modelo: ela recebe o resumo de 128 números e escolhe a letra. Os outros três classificadores fazem o mesmo papel, mas foram treinados neste repositório.
+
 ### 1. Captura e detecção da mão
 O quadro da webcam é espelhado na horizontal (`cv2.flip`), para a imagem se comportar como um espelho, e convertido de BGR para RGB, o formato de cores que o MediaPipe espera. O MediaPipe então devolve três informações sobre a mão:
 * **21 pontos na imagem:** a posição de cada ponto na tela.
@@ -108,25 +110,27 @@ O quadro da webcam é espelhado na horizontal (`cv2.flip`), para a imagem se com
 * **Lado da mão:** se é a mão direita ou a esquerda.
 
 ### 2. O resumo de 128 números
-Dentro do arquivo `models/gesture_recognizer.task` existe uma rede do Google chamada `gesture_embedder`. Ela recebe as três informações acima e devolve uma lista de 128 números que descreve o formato da mão. Dá para pensar nesse resumo como uma "impressão digital" do gesto: a mesma letra feita por mãos diferentes tende a gerar resumos parecidos. A própria rede cuida da posição e do tamanho da mão, por isso o projeto não faz nenhuma normalização manual dos pontos (como centralizar no pulso).
+Dentro do arquivo `models/gesture_recognizer.task` existe uma rede do Google chamada `gesture_embedder`. Ela recebe as três informações acima e devolve uma lista de 128 números que descreve o formato da mão. Dá para pensar nesse resumo como uma "impressão digital" do gesto: a mesma letra feita por mãos diferentes tende a gerar resumos parecidos. A própria rede cuida da posição e do tamanho da mão, por isso o projeto, hoje, não faz nenhuma normalização manual dos pontos (como centralizar no pulso).
 
-O arquivo [`src/classificadores/resumo.py`](src/classificadores/resumo.py) tira essa rede de dentro do `.task` e a roda sozinha. Assim, os quatro classificadores partem exatamente da mesma informação. Foi conferido que, passando esse resumo pela cabeça que vem no `.task`, o resultado é idêntico ao do próprio MediaPipe. Antes, com as coordenadas cruas da tela, os modelos decoravam as mãos do dataset e confundiam U e V ao vivo.
+O arquivo [`src/classificadores/resumo.py`](src/classificadores/resumo.py) tira essa rede de dentro do `.task` e a roda sozinha. Assim, os quatro classificadores partem exatamente da mesma informação. Foi conferido que, passando esse resumo pela cabeça que vem no `.task`, o resultado é idêntico ao do próprio MediaPipe.
+
+Entre 4 e 5 de outubro de 2026, as versões de Random Forest, SVM e SNN usadas no app recebiam os pontos da mão centralizados no pulso, tanto no treino quanto no app. Depois essa normalização foi trocada pelo resumo de 128 números. (O Random Forest e o SVM da Tabela 1 do TCC, de junho, eram outros: usavam as coordenadas cruas da tela, sem normalização.) A troca para o resumo não resolveu o principal limite da avaliação: ao vivo, com uma mão que não está no dataset, os modelos ainda confundem letras parecidas, como U e R (veja [Resultados e Benchmarks](#-resultados-e-benchmarks)).
 
 ### 3. Os quatro classificadores
 Todos recebem o resumo de 128 números e devolvem uma das 21 letras com um grau de certeza.
 
 | Classificador | O que é | Configuração usada |
 | :--- | :--- | :--- |
-| **MediaPipe `.task`** | Classificador do MediaPipe, treinado no Google Colab com o MediaPipe Model Maker. | Cabeça BatchNorm -> ReLU -> camada densa com 22 saídas (as 21 letras e "none", que significa "nenhum gesto"). O log do treino mostra 10 épocas; o notebook e a configuração exata do Colab não estão no repositório. |
+| **MediaPipe `.task`** | Classificador do MediaPipe, treinado no Google Colab com o MediaPipe Model Maker. | Cabeça pequena, sem camadas escondidas: uma etapa que padroniza os 128 números (BatchNorm), uma que zera os valores negativos (ReLU) e uma camada densa que dá uma nota a cada uma das 22 saídas (as 21 letras e "none", que significa "nenhum gesto"). O log do treino mostra 10 épocas (passadas completas pelas fotos de treino). O tamanho do lote provavelmente foi o padrão do Model Maker (2 fotos por vez), mas isso não está confirmado, porque o notebook e a configuração exata do Colab não estão no repositório. |
 | **Random Forest (RF)** | Conjunto de árvores de decisão que votam na letra. | 100 árvores; o resto é o padrão do scikit-learn. |
 | **Support Vector Machine (SVM)** | Separa as letras traçando fronteiras entre os grupos de resumos. | Padronização (`StandardScaler`) + kernel RBF, `C=1`, `gamma='scale'`, `probability=True`. |
-| **Spiking Neural Network (SNN)** | Rede neural inspirada no cérebro, cujos neurônios trocam "pulsos" (*spikes*) ao longo do tempo. | snnTorch, camadas 128 -> 128 -> 128 -> 21, neurônios LIF com decaimento 0,9, 25 passos de tempo, otimizador Adam (taxa 0,002), 50 épocas, lotes de 64, perda `mse_count_loss` (0,8 / 0,1). |
+| **Spiking Neural Network (SNN)** | Rede neural inspirada no cérebro, cujos neurônios trocam "pulsos" (*spikes*) ao longo do tempo. | snnTorch. Entrada com os 128 números do resumo, duas camadas escondidas de 128 neurônios LIF e uma camada de saída com 21 neurônios LIF (um por letra), com decaimento 0,9; 25 passos de tempo; otimizador Adam (taxa 0,002); 50 épocas; lotes de 64; perda `mse_count_loss`, que pede que o neurônio da letra certa dispare em 80% dos passos e os outros em 10%. |
 
 RF, SVM e SNN são treinados por [`src/treino/treinar_modelos.py`](src/treino/treinar_modelos.py) com cada mão do treino duplicada em versão espelhada, para reconhecer tanto a mão direita quanto a esquerda.
 
 ### 4. Depois da classificação
 * **Limiar de confiança:** letras com certeza abaixo do limiar (padrão 50%) são ignoradas.
-* **Soletração:** uma letra só entra na palavra se tiver passado pelo menos 0,7 s desde a anterior.
+* **Soletração:** a mesma letra não entra duas vezes seguidas enquanto a mão continua no mesmo sinal; para repetir, é preciso tirar a mão da câmera. Entre uma letra registrada e a seguinte, é preciso passar pelo menos 0,7 s.
 * **Voz:** a palavra é falada ao teclar `Enter` ou, no modo automático, depois de 5 s sem letras novas.
 
 ---
@@ -246,7 +250,7 @@ As opções são `task`, `snn`, `rf` e `svm`. SNN, Random Forest e SVM usam os a
 | `D` / `Backspace` | Apaga o último caractere |
 | `C` | Limpa o texto acumulado |
 | `H` | Abre e fecha o manual de atalhos |
-| `Q` | Fecha o aplicativo |
+| `q` (minúsculo) | Fecha o aplicativo (com Caps Lock ligado ou com Shift, a tecla não funciona) |
 
 ### 2. Aplicativo web no navegador
 Online, sem instalar nada: <https://rubensmota13-librasmediapipe.static.hf.space>
@@ -255,7 +259,7 @@ Para rodar no próprio computador, sirva a pasta raiz do repositório (o navegad
 ```powershell
 python -m http.server
 ```
-Depois abra [http://localhost:8000/web/](http://localhost:8000/web/). A página carrega o `models/gesture_recognizer.task` local, por isso o `git lfs pull` precisa ter sido feito. Os atalhos de teclado são os mesmos do desktop, exceto o `M` (no navegador só existe o `.task`) e o `Q`, que aqui só para a câmera.
+Depois abra [http://localhost:8000/web/](http://localhost:8000/web/). A página carrega o `models/gesture_recognizer.task` local, por isso o `git lfs pull` precisa ter sido feito. Os atalhos de teclado são os mesmos do desktop, exceto o `M` (no navegador só existe o `.task`) e o `q`, que no navegador só desliga a câmera.
 
 ### 3. Treino dos classificadores
 ```powershell
@@ -290,9 +294,9 @@ python src/treino/treinar_modelos.py
 
 ## 📊 Resultados e Benchmarks
 
-Os quatro modelos são avaliados nas mesmas fotos: as **1.135** fotos de `data/libras/test` (de um total de 1.153) em que o MediaPipe encontrou a mão. Os valores são impressos por `treinar_modelos.py` e por `graficos_modelos.py`. Precisão e recall são médias ponderadas pelo número de fotos de cada letra.
+Os quatro modelos são avaliados nas mesmas fotos: as **1.135** fotos de `data/libras/test` (de um total de 1.153) em que o MediaPipe encontrou a mão. Os valores são impressos por `treinar_modelos.py` e por `graficos_modelos.py`. Precisão, recall e F1 são calculados letra por letra e depois resumidos numa média ponderada pelo número de fotos de cada letra. Por isso o F1 geral não é a média direta da precisão e do recall gerais e pode ficar abaixo dos dois, como acontece com o `.task` (F1 de 0,863, com precisão de 0,931 e recall de 0,891).
 
-| Modelo | Acurácia | Precisão Ponderada | Recall Ponderado | F1-Score |
+| Modelo | Acurácia | Precisão Ponderada | Recall Ponderado | F1 Ponderado |
 | :--- | :---: | :---: | :---: | :---: |
 | **MediaPipe Tasks (`gesture_recognizer.task`)** | 0,891 | 0,931 | 0,891 | 0,863 |
 | **Random Forest (100 árvores)** | 0,994 | 0,994 | 0,994 | 0,994 |
@@ -301,11 +305,12 @@ Os quatro modelos são avaliados nas mesmas fotos: as **1.135** fotos de `data/l
 
 Contando também as 18 fotos sem mão como erro (todas as 1.153 fotos, em `matriz_confusao_task.py`), o `.task` fica com acurácia de 0,877 e F1 de 0,856.
 
-> **Atenção ao ler esses números:** eles medem o desempenho com as **mesmas pessoas** que aparecem no treino, não com um usuário novo.
+> **Atenção ao ler esses números:** eles medem o desempenho com as **mesmas mãos** que aparecem no treino, não com um usuário novo.
 > * O dataset `data/libras` já chegou dividido em treino e teste; nenhum script do projeto faz essa divisão, e não existe a informação de qual pessoa ou vídeo gerou cada foto.
-> * Há pelo menos 4 a 5 mãos diferentes nas fotos, e as mesmas mãos aparecem no treino e no teste. O teste é um pouco mais diferente do treino do que seria num sorteio, mas um método que só procura a foto de treino mais parecida (vizinho mais próximo, 1-NN) ainda acerta 99,2% do teste.
-> * Quando um grupo de gravações parecidas (mesma cor de pele, fundo e iluminação) é deixado fora do treino, o SVM cai para 77% a 88% de acurácia nesse grupo, com confusões como N e M, P e N, C e O. Essa é uma estimativa mais próxima do que acontece com uma pessoa nova.
-> * O 0,891 do `.task` **não** quer dizer que ele seja "mais realista". Ele acerta cerca de 0,89 até nas fotos de treino, ou seja, está subtreinado pela configuração padrão do Model Maker (lotes de 2 fotos e 10 épocas). A mesma cabeça, treinada com lotes maiores e mais épocas, chega a 0,99.
+> * Há pelo menos 4 a 5 mãos diferentes nas fotos, e as mesmas mãos aparecem no treino e no teste. As fotos de teste são um pouco mais diferentes das de treino do que seriam se tivessem sido sorteadas do mesmo conjunto, mas um método que só procura a mão de treino com os pontos (landmarks) mais parecidos (vizinho mais próximo, 1-NN) ainda acerta 99,2% do teste.
+> * Para estimar o acerto com uma pessoa nova, as fotos com mão foram separadas em 6 grupos de gravações parecidas (mesma cor de pele, fundo e iluminação), e o SVM foi treinado sem cada grupo e testado nele. Em 2 dos 6 grupos o acerto caiu para 77% e 88%, com confusões como N e M, P e N, C e O. Nos outros 4 grupos ele ficou entre 93% e 99%. Ou seja, uma mão ou um ambiente bem diferente do treino pode derrubar bastante o acerto, mas isso não acontece com qualquer grupo.
+> * Ao vivo, com uma mão que não está no dataset, os modelos ainda confundem letras parecidas; o caso relatado é U e R. No teste, essa confusão quase não aparece para RF, SVM e SNN (um único caso, no SVM), o que é mais um sinal de que o teste é fácil demais para eles. Trocar os pontos da mão pelo resumo de 128 números não resolveu esse problema.
+> * O 0,891 do `.task` **não** quer dizer que ele seja "mais realista". Ele acerta cerca de 0,89 até nas fotos de treino, ou seja, está subtreinado: não aprendeu bem nem os exemplos que viu. A causa provável é a configuração padrão do Model Maker (lotes de 2 fotos e 10 épocas); o log do Colab confirma só as 10 épocas, e o lote de 2 é uma dedução. A mesma cabeça, treinada com lotes maiores e mais épocas, chega a 0,99.
 >
 > A explicação completa, os próximos testes recomendados (como um teste com uma mão que nunca foi usada no treino) e as diferenças entre o texto do TCC e o que o código faz estão em [docs/avaliacao/metodologia-e-limitacoes.md](docs/avaliacao/metodologia-e-limitacoes.md).
 

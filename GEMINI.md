@@ -18,7 +18,8 @@ Caminho de cada imagem da câmera:
 frame da webcam (espelhado, como um espelho)
   -> MediaPipe encontra a mão: 21 landmarks na imagem + 21 landmarks 3D + mão direita/esquerda
   -> classificação, de uma de duas formas:
-       (a) o próprio .task (gesture_embedder + cabeça treinada no Colab), ou
+       (a) o próprio .task (gesture_embedder + cabeça treinada no Colab,
+           que é a parte final do modelo e escolhe a letra), ou
        (b) gesture_embedder -> resumo de 128 números -> Random Forest, SVM ou SNN
   -> limiar de confiança -> buffer de soletração -> voz
 ```
@@ -58,7 +59,7 @@ O projeto possui dois ambientes de execução, com propósitos diferentes:
    * Tem os mesmos recursos de uso da versão local: limiar ajustável (50% por padrão), 0,7 s entre letras e voz em português pela Web Speech API do navegador.
    * Está publicado como Space estático do Hugging Face: <https://rubensmota13-librasmediapipe.static.hf.space>. O cabeçalho YAML do `README.md` configura esse Space (`sdk: static`, `app_file: web/index.html`) e não deve ser alterado.
    * No GitHub, o `.task` fica no Git LFS (aparece como um ponteiro pequeno). O Space precisa receber o arquivo real.
-   * Histórico: a primeira versão web era uma interface Gradio dentro de um container Docker, que mandava cada frame para o servidor e por isso atrasava. Ela foi removida do repositório.
+   * Histórico: a versão web anterior era uma interface Gradio (primeiro com o SDK Gradio do Hugging Face e, a partir de 26/05/2026, num container Docker), que mandava cada frame para o servidor e por isso atrasava. Ela foi removida do repositório.
 
 > Para entender por que a versão web saiu do servidor e passou a rodar no navegador, consulte [docs/ambientes/versao-web-navegador.md](docs/ambientes/versao-web-navegador.md).
 
@@ -117,7 +118,9 @@ LibrasMediaPipe/
 └── .agents/                            # Regras do workspace
 ```
 
-Na limpeza de outubro de 2026, a pasta `src/evaluation` foi dividida em `src/treino` e `src/avaliacao`, e foram removidos: a versão Gradio (`src/web/app.py` e `Dockerfile`), o antigo `comparar_modelos.py` (Random Forest e SVM sobre as coordenadas cruas, que gerou a Tabela 1 do TCC), o `src/classificadores/landmarks.py`, que nenhum código usava, e o documento `docs/ambientes/local-vs-huggingface.md`. Não procure nem cite esses arquivos como se ainda existissem.
+Na limpeza de outubro de 2026, a pasta `src/evaluation` foi dividida em `src/treino` e `src/avaliacao`, e foram removidos: a versão Gradio (`src/web/app.py` e `Dockerfile`), o antigo `comparar_modelos.py` (Random Forest e SVM sobre as coordenadas cruas da tela, que gerou a Tabela 1 do TCC), o `src/classificadores/landmarks.py` e o documento `docs/ambientes/local-vs-huggingface.md`. Não procure nem cite esses arquivos como se ainda existissem.
+
+O `landmarks.py` fazia a normalização no pulso: colocava o pulso na origem e dividia os pontos pela distância até o ponto mais afastado dele. Essa normalização foi usada pelas primeiras versões de Random Forest, SVM e SNN, no app e no treino, entre 4 e 5 de outubro de 2026. Depois ela foi trocada pelo resumo de 128 números e, na limpeza, nenhum código a usava mais. Ela nunca foi usada no `comparar_modelos.py`, o script que gerou a Tabela 1 do TCC.
 
 ---
 
@@ -128,7 +131,7 @@ Na limpeza de outubro de 2026, a pasta `src/evaluation` foi dividida em `src/tre
 python src/desktop/detectar_libras.py
 python src/desktop/detectar_libras.py --modelo snn   # ou task, rf, svm
 ```
-* `q` encerra, `H` abre a ajuda com todos os atalhos, `M` troca o classificador e `+` / `-` mudam o limiar de confiança.
+* `q` (minúsculo) encerra, `H` abre a ajuda com todos os atalhos, `M` troca o classificador e `+` / `-` mudam o limiar de confiança.
 
 ### 4.2. Execução da Versão Web no Computador
 Na raiz do repositório:
@@ -164,7 +167,14 @@ python src/avaliacao/curvas_treino_task.py
 
 ## 5. Cuidados com as Métricas
 
-As métricas do projeto foram medidas nas fotos de `data/libras/test`, que já veio separada do treino e tem as mesmas mãos (pelo menos 4 a 5 pessoas diferentes, e não uma só); por isso elas mostram o acerto com mãos já vistas, e não com um usuário novo. Quando um grupo de gravações parecidas fica de fora do treino, o SVM cai para 77% a 88% de acurácia nesse grupo. A acurácia de 0,891 do `.task` não é um resultado "mais realista": ele acerta cerca de 0,89 até nas fotos de treino porque foi pouco treinado (configuração padrão do Model Maker, com batch 2 e 10 épocas). O texto do TCC de 18/09 cita normalização no pulso, divisão 70/15/15 e o V-LIBRASIL, mas o código nunca fez nada disso; os detalhes e os próximos passos estão em [docs/avaliacao/metodologia-e-limitacoes.md](docs/avaliacao/metodologia-e-limitacoes.md).
+As métricas do projeto foram medidas nas fotos de `data/libras/test`, que já veio separada do treino e tem as mesmas mãos do treino (pelo menos 4 a 5 mãos diferentes, contadas pela cor da pele e pelos acessórios, e não uma pessoa só). Por isso elas mostram o acerto com mãos já vistas, e não com um usuário novo. Esse problema se chama vazamento: o teste repete as mãos do treino. Ao falar dos resultados, leve em conta também:
+
+* **Teste por grupo de gravação.** A auditoria de outubro de 2026 separou as fotos em 6 grupos de gravações parecidas e treinou o SVM deixando um grupo de fora de cada vez. Em 2 dos 6 grupos, o acerto do SVM no grupo deixado de fora caiu para 77% e 88%. Nos outros 4 grupos, ele ficou entre 93% e 99%. Não diga que qualquer grupo deixado de fora derruba o acerto.
+* **Uso ao vivo.** Com uma mão nova na frente da webcam, os modelos ainda confundem letras parecidas; o caso relatado foi U com R. O resumo de 128 números não resolveu o vazamento.
+* **O 0,891 do `.task`.** Esse acerto não é um resultado "mais realista": o `.task` acerta cerca de 0,89 até nas fotos de treino, porque foi pouco treinado. O log do Colab confirma só as 10 épocas (passadas completas pelas fotos de treino). Os lotes de 2 fotos são o padrão do Model Maker e, por isso, a configuração provável, mas não confirmada.
+* **Texto do TCC de 18/09.** Ele cita normalização no pulso, divisão 70/15/15 e a base V-LIBRASIL. Nenhum código do repositório fez a divisão 70/15/15 nem usou a V-LIBRASIL. A normalização no pulso só existiu nas primeiras versões de RF, SVM e SNN (seção 3) e nunca foi usada no script que gerou a Tabela 1, que usava as coordenadas cruas da tela.
+
+Os detalhes e os próximos passos estão em [docs/avaliacao/metodologia-e-limitacoes.md](docs/avaliacao/metodologia-e-limitacoes.md).
 
 ---
 

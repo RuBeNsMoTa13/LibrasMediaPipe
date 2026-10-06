@@ -9,9 +9,8 @@ Fluxo:
      e guarda em cache (results/tables/resumo_libras.npz). Fotos em que o
      MediaPipe não encontra a mão ficam de fora.
   2. Passa cada mão pela rede gesture_embedder que vem dentro do .task
-     (src/classificadores/resumo.py), que devolve 128 números. Com as
-     coordenadas cruas os modelos decoravam as mãos do dataset e confundiam
-     U e V ao vivo.
+     (src/classificadores/resumo.py), que devolve 128 números. Antes, RF,
+     SVM e SNN usavam os pontos da mão centralizados no pulso.
   3. Treina a SNN (neurônios LIF, snnTorch), o Random Forest e o SVM nesses
      resumos, com cada mão também espelhada, e imprime as quatro métricas dos
      quatro modelos no formato da tabela LaTeX. A linha do .task usa a letra
