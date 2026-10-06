@@ -1,21 +1,24 @@
 """
 Treina e testa Random Forest, SVM e uma Spiking Neural Network (SNN) sobre o
-mesmo "resumo" de 128 números da mão que o gesture_recognizer.task usa.
+mesmo "resumo" de 128 números da mão que o gesture_recognizer.task usa, e
+compara os três com o próprio .task nas mesmas fotos de teste.
 
 Fluxo:
   1. Extrai de cada foto de data/libras/train e data/libras/test os landmarks
      da imagem, os landmarks 3D e a mão (direita/esquerda), com o próprio .task,
-     e guarda em cache (results/tables/resumo_libras.npz).
+     e guarda em cache (results/tables/resumo_libras.npz). Fotos em que o
+     MediaPipe não encontra a mão ficam de fora.
   2. Passa cada mão pela rede gesture_embedder que vem dentro do .task
-     (src/classificadores/resumo.py), que devolve 128 números. Com as
-     coordenadas cruas os modelos decoravam a mão do dataset (que tem
-     praticamente uma pessoa só) e confundiam U e V ao vivo.
+     (src/classificadores/resumo.py), que devolve 128 números. Antes, RF,
+     SVM e SNN usavam os pontos da mão centralizados no pulso.
   3. Treina a SNN (neurônios LIF, snnTorch), o Random Forest e o SVM nesses
-     resumos, com cada mão também espelhada, e imprime as quatro métricas no
-     formato da tabela LaTeX.
+     resumos, com cada mão também espelhada, e imprime as quatro métricas dos
+     quatro modelos no formato da tabela LaTeX. A linha do .task usa a letra
+     que ele mesmo deu a cada foto na extração do passo 1.
   4. Salva os três modelos em models/ (snn_libras.pt, rf_libras.pkl e
      svm_libras.pkl) para o app da webcam, que alterna entre eles com a tecla M.
 
+Uso: python src/treino/treinar_modelos.py
 Dependências extras: pip install torch snntorch scikit-learn ai-edge-litert
 """
 import sys
@@ -141,10 +144,13 @@ for nome, modelo, caminho in [("Random Forest", rf, CAMINHO_RF), ("SVM", svm, CA
     salvar_classico(modelo, classes, caminho)
     print(f"Modelo {nome} salvo em {caminho}")
 
+# O .task já classificou cada foto na extração (pred_task): mesmas fotos de teste
+m_task = metricas(teste["y"], teste["pred_task"])
+
 print("\n" + "=" * 65)
 print("VALORES PARA A TABELA NO LATEX (acurácia, precisão, recall, F1)")
 print("=" * 65)
-for nome, m in [("Random Forest", m_rf), ("Support Vector Machine", m_svm),
-                ("Spiking Neural Network", m_snn)]:
+for nome, m in [("MediaPipe (.task)", m_task), ("Random Forest", m_rf),
+                ("Support Vector Machine", m_svm), ("Spiking Neural Network", m_snn)]:
     print(f"{nome:<24}& {m[0]:.3f} & {m[1]:.3f} & {m[2]:.3f} & {m[3]:.3f} \\\\")
 print("=" * 65)

@@ -3,9 +3,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Gradio cache and local runs
-.gradio/
-
 # Environments
 .env
 .venv
@@ -22,6 +19,5 @@ desktop.ini
 .vscode/
 .idea/
 
-# Caches de landmarks gerados por src/evaluation/testar_snn.py
-results/tables/landmarks_libras.npz
+# Cache de landmarks gerado por src/classificadores/resumo.py
 results/tables/resumo_libras.npz

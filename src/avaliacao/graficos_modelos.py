@@ -10,13 +10,14 @@ Gráficos salvos em results/figures/:
   - comparacao_modelos.png         acurácia, precisão, recall e F1 dos quatro modelos
   - f1_por_letra.png               F1 de cada letra em cada modelo (mapa de calor)
   - matriz_confusao_rf.png / _svm.png / _snn.png
+    (a matriz do .task é feita por src/avaliacao/matriz_confusao_task.py)
 
 Todos os modelos são avaliados nas MESMAS fotos de teste: as de data/libras/test
 em que o MediaPipe encontrou uma mão. RF, SVM e SNN usam o mesmo resumo de 128
 números da mão que o .task (src/classificadores/resumo.py) e repetem a receita de
-testar_snn.py: mãos espelhadas, mesma padronização, mesmas sementes.
+src/treino/treinar_modelos.py: mãos espelhadas, mesma padronização, mesmas sementes.
 
-Uso: python src/evaluation/graficos_modelos.py
+Uso: python src/avaliacao/graficos_modelos.py
 Dependências: pip install torch snntorch scikit-learn matplotlib seaborn mediapipe opencv-python ai-edge-litert
 """
 import os
