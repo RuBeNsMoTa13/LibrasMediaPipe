@@ -218,7 +218,7 @@ def grafico_matriz(y_true, y_pred, classes, nome, arquivo):
     sns.heatmap(matriz, annot=True, fmt="d", cmap="Blues",
                 xticklabels=classes, yticklabels=classes)
     plt.grid(False)
-    plt.title(f"Matriz de Confusão - {nome}")
+    plt.title(f"Matriz de Confusão: {nome}")
     plt.ylabel("Letra Correta (Realidade)")
     plt.xlabel("Letra Prevista (Modelo)")
     salvar(arquivo)
@@ -271,7 +271,13 @@ grafico_deteccao(classes, total, detectadas)
 graficos_snn(hist)
 grafico_comparacao(resultados)
 grafico_f1_por_letra(y_teste, previsoes, classes)
+# O título diz o que extrai os dados da mão (MediaPipe) e o que classifica
+TITULOS = {
+    "Random Forest": "MediaPipe + Random Forest (100 árvores)",
+    "SVM": "MediaPipe + SVM (kernel RBF)",
+    "SNN": "MediaPipe + Spiking Neural Network (rede neural de impulsos, LIF)",
+}
 for nome, arquivo in [("Random Forest", "matriz_confusao_rf.png"),
                       ("SVM", "matriz_confusao_svm.png"),
                       ("SNN", "matriz_confusao_snn.png")]:
-    grafico_matriz(y_teste, previsoes[nome], classes, nome, arquivo)
+    grafico_matriz(y_teste, previsoes[nome], classes, TITULOS[nome], arquivo)

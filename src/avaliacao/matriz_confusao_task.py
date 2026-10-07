@@ -94,7 +94,8 @@ matriz = confusion_matrix(y_verdadeiro, y_previsto, labels=colunas)[:len(letras)
 
 plt.figure(figsize=(10, 8))
 sns.heatmap(matriz, annot=True, fmt='d', cmap='Blues', xticklabels=colunas, yticklabels=letras)
-plt.title('Matriz de Confusão - gesture_recognizer.task', fontsize=14, fontweight='bold')
+plt.title('Matriz de Confusão: MediaPipe Gesture Recognizer (.task, rede neural densa do Model Maker)',
+          fontsize=12, fontweight='bold')
 plt.ylabel('Letra Correta (Realidade)', fontsize=12)
 plt.xlabel('Letra Prevista (Modelo)', fontsize=12)
 
