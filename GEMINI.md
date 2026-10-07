@@ -101,7 +101,7 @@ LibrasMediaPipe/
 │   ├── desktop/
 │   │   └── detectar_libras.py          # App da webcam: OpenCV, soletração, voz e troca de modelo
 │   ├── treino/
-│   │   └── treinar_modelos.py          # Treina RF, SVM e SNN, salva em models/ e imprime a tabela LaTeX
+│   │   └── treinar_modelos.py          # Treina RF, SVM e SNN, salva em models/ e imprime a tabela do TCC
 │   └── avaliacao/
 │       ├── graficos_modelos.py         # Gráficos de comparação dos quatro modelos
 │       ├── matriz_confusao_task.py     # Matriz de confusão do .task (Figura 3 do TCC)
@@ -143,7 +143,7 @@ python -m http.server
 ### 4.3. Treino e Métricas para a Monografia
 ```powershell
 # Treina RF, SVM e SNN sobre o resumo de 128 números, salva em models/
-# e imprime a tabela LaTeX dos quatro modelos (inclui a linha do .task):
+# e imprime a tabela dos quatro modelos, pronta para colar no Word (inclui a linha do .task):
 python src/treino/treinar_modelos.py
 
 # Gera os gráficos de comparação dos quatro modelos e as matrizes de RF, SVM e SNN:
