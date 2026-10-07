@@ -11,7 +11,8 @@ Forest, SVM e SNN classifiquem a partir da mesma base que o .task. Verificado:
 passando o resumo pelo classificador que vem no .task, o resultado é idêntico
 ao do GestureRecognizer.
 
-Dependência: pip install ai-edge-litert (ou o TensorFlow, se já estiver instalado)
+Dependências: pip install ai-edge-litert (ou o TensorFlow, se já estiver
+instalado) e kagglehub (para baixar o dataset)
 """
 import io
 import os
@@ -22,15 +23,29 @@ import numpy as np
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 MODELO = ROOT_DIR / "models" / "gesture_recognizer.task"
-CACHE = ROOT_DIR / "results" / "tables" / "resumo_libras.npz"
-# Pasta com train/ e test/. Padrão: a amostra de ~10% do Kaggle que fica no
-# projeto. O notebook do Colab troca pelo dataset inteiro com LIBRAS_DADOS.
-PASTA_DADOS = Path(os.environ.get("LIBRAS_DADOS", ROOT_DIR / "data" / "libras"))
-PASTA_TREINO = PASTA_DADOS / "train"
-PASTA_TESTE = PASTA_DADOS / "test"
+CACHE = ROOT_DIR / "results" / "tables" / "resumo_libras_kaggle.npz"
+KAGGLE = "williansoliveira/libras"
 TAMANHO = 128
 
 _rede = None
+_pasta_dados = None
+
+
+def pasta_dados():
+    """Pasta do dataset, com train/ e test/: a da variável LIBRAS_DADOS ou, se ela
+    não existir, o dataset inteiro do Kaggle (46.262 fotos), baixado pelo kagglehub
+    na primeira vez e reaproveitado do cache dele nas seguintes."""
+    global _pasta_dados
+    if _pasta_dados is None:
+        if os.environ.get("LIBRAS_DADOS"):
+            _pasta_dados = Path(os.environ["LIBRAS_DADOS"])
+        else:
+            import kagglehub
+
+            baixado = Path(kagglehub.dataset_download(KAGGLE))
+            _pasta_dados = next(p.parent for p in sorted(baixado.rglob("train"))
+                                if (p.parent / "test").is_dir())
+    return _pasta_dados
 
 
 def carregar_rede():
@@ -140,9 +155,9 @@ def carregar_dados():
             base_options=python.BaseOptions(model_asset_path=str(MODELO)),
             running_mode=vision.RunningMode.IMAGE))
         print("\nExtraindo landmarks do TREINO...")
-        treino = _extrair_pasta(recognizer, PASTA_TREINO)
+        treino = _extrair_pasta(recognizer, pasta_dados() / "train")
         print("\nExtraindo landmarks do TESTE...")
-        teste = _extrair_pasta(recognizer, PASTA_TESTE)
+        teste = _extrair_pasta(recognizer, pasta_dados() / "test")
         recognizer.close()
         CACHE.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(CACHE, **{f"treino_{k}": v for k, v in treino.items()},
