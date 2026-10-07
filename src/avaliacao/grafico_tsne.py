@@ -1,5 +1,5 @@
 """
-Gera o gráfico t-SNE dos resumos de 128 números das mãos (Figura 6 do TCC).
+Gera o gráfico t-SNE dos resumos de 128 números das mãos (Figura 5 do TCC).
 
 O t-SNE não é um classificador: ele só "achata" os 128 números de cada mão em
 2 números, para dar para desenhar, mantendo perto no gráfico as mãos que eram
