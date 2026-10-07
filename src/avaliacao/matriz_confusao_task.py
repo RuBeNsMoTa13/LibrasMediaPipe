@@ -84,12 +84,17 @@ print("--- RELATÓRIO DE DESEMPENHO ---")
 print(classification_report(y_verdadeiro, y_previsto))
 
 # --- 5. GERAR E SALVAR A MATRIZ DE CONFUSÃO ---
-classes = sorted(list(set(y_verdadeiro + y_previsto)))
-matriz = confusion_matrix(y_verdadeiro, y_previsto, labels=classes)
+# Linhas: só as letras de verdade. Colunas: as letras e, no fim, "Nenhum"
+# (foto em que a mão não foi encontrada). Assim não aparece uma linha
+# "Nenhum" vazia no meio da matriz, entre N e O.
+letras = sorted(set(y_verdadeiro))
+extras = sorted(set(y_previsto) - set(letras) - {"Nenhum"})  # ex.: "NONE"
+colunas = letras + extras + ["Nenhum"]
+matriz = confusion_matrix(y_verdadeiro, y_previsto, labels=colunas)[:len(letras)]
 
 plt.figure(figsize=(10, 8))
-sns.heatmap(matriz, annot=True, fmt='d', cmap='Blues', xticklabels=classes, yticklabels=classes)
-plt.title('Matriz de Confusão - Reconhecimento de LIBRAS', fontsize=14, fontweight='bold')
+sns.heatmap(matriz, annot=True, fmt='d', cmap='Blues', xticklabels=colunas, yticklabels=letras)
+plt.title('Matriz de Confusão - gesture_recognizer.task', fontsize=14, fontweight='bold')
 plt.ylabel('Letra Correta (Realidade)', fontsize=12)
 plt.xlabel('Letra Prevista (Modelo)', fontsize=12)
 
