@@ -331,6 +331,7 @@ Todos ficam em [`results/figures/`](results/figures).
 | `f1_por_letra.png` | F1 de cada letra em cada modelo (mapa de calor) | `graficos_modelos.py` |
 | `distribuicao_amostras.png` | Quantidade de fotos por letra no treino e no teste | `graficos_modelos.py` |
 | `deteccao_maos_por_letra.png` | Porcentagem das fotos de teste em que o MediaPipe encontrou a mão | `graficos_modelos.py` |
+| `tsne_letras.png` | Resumos de 128 números de todas as fotos com mão projetados em 2D pelo t-SNE; à direita, só as letras parecidas (M, N, T, F, U, R, V) | `grafico_tsne.py` |
 
 ---
 
