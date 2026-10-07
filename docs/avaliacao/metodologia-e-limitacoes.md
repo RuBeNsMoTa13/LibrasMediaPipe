@@ -36,7 +36,7 @@ Este documento explica, para quem não é da área e para a banca do TCC, de ond
 
 ## 1. De onde vêm os dados e como estão divididos
 
-As fotos ficam em `data/libras/train/<letra>/` e `data/libras/test/<letra>/`, com 64 x 64 pixels cada. São 21 letras estáticas: A, B, C, D, E, F, G, I, L, M, N, O, P, Q, R, S, T, U, V, W e Y.
+As fotos usadas nesta auditoria ficavam em `data/libras/train/<letra>/` e `data/libras/test/<letra>/`, com 64 x 64 pixels cada. Em 07/10/2026 se confirmou que essa pasta era uma amostra de cerca de 10% do dataset do Kaggle (4.621 de 46.262 fotos, idênticas e na mesma divisão); ela saiu do repositório, e os scripts passaram a baixar o dataset inteiro. São 21 letras estáticas: A, B, C, D, E, F, G, I, L, M, N, O, P, Q, R, S, T, U, V, W e Y.
 
 | Pasta | Fotos | Por letra | Fotos em que o MediaPipe achou a mão |
 |---|---|---|---|
@@ -61,7 +61,7 @@ As fotos ficam em `data/libras/train/<letra>/` e `data/libras/test/<letra>/`, co
 ### 2.1 O caminho de uma imagem até a letra
 
 1. **Imagem.** No treino, uma foto de `data/libras`. No app desktop, cada frame da webcam é espelhado antes de tudo ([`detectar_libras.py`, linha 293](../../src/desktop/detectar_libras.py#L293)).
-2. **O MediaPipe acha a mão** e devolve, da primeira mão encontrada: os 21 landmarks na imagem (de 0 a 1), os mesmos 21 pontos em 3D (em metros, centrados na mão) e a probabilidade de ser a mão direita. **Fotos sem mão encontrada ficam fora do treino e do teste** ([`resumo.py`, linhas 104 e 105](../../src/classificadores/resumo.py#L104-L105)). Tudo fica guardado em `results/tables/resumo_libras.npz`.
+2. **O MediaPipe acha a mão** e devolve, da primeira mão encontrada: os 21 landmarks na imagem (de 0 a 1), os mesmos 21 pontos em 3D (em metros, centrados na mão) e a probabilidade de ser a mão direita. **Fotos sem mão encontrada ficam fora do treino e do teste** ([`resumo.py`, linhas 104 e 105](../../src/classificadores/resumo.py#L104-L105)). Tudo fica guardado em `results/tables/resumo_libras_kaggle.npz`.
 3. **Resumo de 128 números.** Os landmarks passam pela rede `gesture_embedder.tflite`, lida de dentro do próprio `.task` ([`resumo.py`, linhas 33 a 65](../../src/classificadores/resumo.py#L33-L65)). **É essa rede do Google que ajusta posição e tamanho da mão.** Hoje o projeto não normaliza os landmarks por conta própria em nenhum classificador, e não é possível inspecionar como a rede faz isso. As primeiras versões de RF, SVM e SNN, de 4 e 5/10/2026, centralizavam a mão no pulso antes de classificar (seção 6).
 4. **Classificação**, de dois jeitos: **(a)** o próprio `.task`, que passa o resumo pela pequena camada treinada no Colab (seção 3); ou **(b)** Random Forest, SVM ou SNN, que recebem exatamente o mesmo resumo. Os quatro modelos partem, portanto, da mesma base.
 5. **No app,** a letra só é aceita se a confiança passar do limiar (50% por padrão, ajustável com `+` e `-`), com no mínimo 0,7 s entre letras, e a palavra pode ser falada em voz alta. A versão web usa só o `.task`, também com limiar padrão de 50%.

@@ -11,7 +11,8 @@ Forest, SVM e SNN classifiquem a partir da mesma base que o .task. Verificado:
 passando o resumo pelo classificador que vem no .task, o resultado é idêntico
 ao do GestureRecognizer.
 
-Dependência: pip install ai-edge-litert
+Dependências: pip install ai-edge-litert (ou o TensorFlow, se já estiver
+instalado) e kagglehub (para baixar o dataset)
 """
 import io
 import os
@@ -22,19 +23,40 @@ import numpy as np
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 MODELO = ROOT_DIR / "models" / "gesture_recognizer.task"
-CACHE = ROOT_DIR / "results" / "tables" / "resumo_libras.npz"
-PASTA_TREINO = ROOT_DIR / "data" / "libras" / "train"
-PASTA_TESTE = ROOT_DIR / "data" / "libras" / "test"
+CACHE = ROOT_DIR / "results" / "tables" / "resumo_libras_kaggle.npz"
+KAGGLE = "williansoliveira/libras"
 TAMANHO = 128
 
 _rede = None
+_pasta_dados = None
+
+
+def pasta_dados():
+    """Pasta do dataset, com train/ e test/: a da variável LIBRAS_DADOS ou, se ela
+    não existir, o dataset inteiro do Kaggle (46.262 fotos), baixado pelo kagglehub
+    na primeira vez e reaproveitado do cache dele nas seguintes."""
+    global _pasta_dados
+    if _pasta_dados is None:
+        if os.environ.get("LIBRAS_DADOS"):
+            _pasta_dados = Path(os.environ["LIBRAS_DADOS"])
+        else:
+            import kagglehub
+
+            baixado = Path(kagglehub.dataset_download(KAGGLE))
+            _pasta_dados = next(p.parent for p in sorted(baixado.rglob("train"))
+                                if (p.parent / "test").is_dir())
+    return _pasta_dados
 
 
 def carregar_rede():
     """Abre o .task (um zip com outro zip dentro) e carrega gesture_embedder.tflite."""
     global _rede
     if _rede is None:
-        from ai_edge_litert.interpreter import Interpreter
+        try:
+            from ai_edge_litert.interpreter import Interpreter
+        except ImportError:
+            # No Colab, depois do Model Maker, o TensorFlow já traz o mesmo leitor
+            from tensorflow.lite.python.interpreter import Interpreter
 
         with zipfile.ZipFile(MODELO) as externo:
             interno = zipfile.ZipFile(io.BytesIO(externo.read("hand_gesture_recognizer.task")))
@@ -133,9 +155,9 @@ def carregar_dados():
             base_options=python.BaseOptions(model_asset_path=str(MODELO)),
             running_mode=vision.RunningMode.IMAGE))
         print("\nExtraindo landmarks do TREINO...")
-        treino = _extrair_pasta(recognizer, PASTA_TREINO)
+        treino = _extrair_pasta(recognizer, pasta_dados() / "train")
         print("\nExtraindo landmarks do TESTE...")
-        teste = _extrair_pasta(recognizer, PASTA_TESTE)
+        teste = _extrair_pasta(recognizer, pasta_dados() / "test")
         recognizer.close()
         CACHE.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(CACHE, **{f"treino_{k}": v for k, v in treino.items()},

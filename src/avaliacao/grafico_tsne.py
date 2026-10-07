@@ -3,7 +3,7 @@ Gera o gráfico t-SNE dos resumos de 128 números das mãos (Figura 5 do TCC).
 
 O t-SNE não é um classificador: ele só "achata" os 128 números de cada mão em
 2 números, para dar para desenhar, mantendo perto no gráfico as mãos que eram
-parecidas. Cada ponto é uma foto de data/libras (treino e teste) em que o
+parecidas. Cada ponto é uma foto do dataset do Kaggle (treino e teste) em que o
 MediaPipe encontrou a mão, e a cor é a letra verdadeira.
 
 Gráfico salvo em results/figures/:
@@ -12,7 +12,7 @@ Gráfico salvo em results/figures/:
                       outras em cinza
 
 Uso: python src/avaliacao/grafico_tsne.py
-Dependências: pip install scikit-learn matplotlib mediapipe opencv-python ai-edge-litert
+Dependências: pip install scikit-learn matplotlib mediapipe opencv-python ai-edge-litert kagglehub
 """
 import sys
 from pathlib import Path

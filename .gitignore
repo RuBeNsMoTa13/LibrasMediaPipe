@@ -21,3 +21,4 @@ desktop.ini
 
 # Cache de landmarks gerado por src/classificadores/resumo.py
 results/tables/resumo_libras.npz
+results/tables/resumo_libras_kaggle.npz

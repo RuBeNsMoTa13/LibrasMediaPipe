@@ -121,12 +121,12 @@ Todos recebem o resumo de 128 números e devolvem uma das 21 letras com um grau 
 
 | Classificador | O que é | Configuração usada |
 | :--- | :--- | :--- |
-| **MediaPipe `.task`** | Classificador do MediaPipe, treinado no Google Colab com o MediaPipe Model Maker. | Cabeça pequena, sem camadas escondidas: uma etapa que padroniza os 128 números (BatchNorm), uma que zera os valores negativos (ReLU) e uma camada densa que dá uma nota a cada uma das 22 saídas (as 21 letras e "none", que significa "nenhum gesto"). O log do treino mostra 10 épocas (passadas completas pelas fotos de treino). O tamanho do lote provavelmente foi o padrão do Model Maker (2 fotos por vez), mas isso não está confirmado, porque o notebook e a configuração exata do Colab não estão no repositório. |
+| **MediaPipe `.task`** | Classificador do MediaPipe, treinado no Google Colab com o MediaPipe Model Maker. | Cabeça pequena, sem camadas escondidas: uma etapa que padroniza os 128 números (BatchNorm), uma que zera os valores negativos (ReLU) e uma camada densa que dá uma nota a cada uma das 22 saídas (as 21 letras e "none", que significa "nenhum gesto"). Treinado no Google Colab com [`notebooks/treinar_no_colab.ipynb`](notebooks/treinar_no_colab.ipynb), com o dataset inteiro do Kaggle (46.262 fotos), usando a pasta `train` para treinar e a `test` só para testar. As configurações e a perda e a acurácia de cada época ficam em [`results/treinos/task.json`](results/treinos/task.json). O notebook do treino original (10 épocas, lotes de 2, `train` e `test` misturados) está em [`notebooks/historico/`](notebooks/historico/Libras_gesture_recognizer.ipynb). |
 | **Random Forest (RF)** | Conjunto de árvores de decisão que votam na letra. | 100 árvores; o resto é o padrão do scikit-learn. |
 | **Support Vector Machine (SVM)** | Separa as letras traçando fronteiras entre os grupos de resumos. | Padronização (`StandardScaler`) + kernel RBF, `C=1`, `gamma='scale'`, `probability=True`. |
 | **Spiking Neural Network (SNN)** | Rede neural inspirada no cérebro, cujos neurônios trocam "pulsos" (*spikes*) ao longo do tempo. | snnTorch. Entrada com os 128 números do resumo, duas camadas escondidas de 128 neurônios LIF e uma camada de saída com 21 neurônios LIF (um por letra), com decaimento 0,9; 25 passos de tempo; otimizador Adam (taxa 0,002); 50 épocas; lotes de 64; perda `mse_count_loss`, que pede que o neurônio da letra certa dispare em 80% dos passos e os outros em 10%. |
 
-RF, SVM e SNN são treinados por [`src/treino/treinar_modelos.py`](src/treino/treinar_modelos.py) com cada mão do treino duplicada em versão espelhada, para reconhecer tanto a mão direita quanto a esquerda.
+RF, SVM e SNN são treinados por [`src/treino/treinar_modelos.py`](src/treino/treinar_modelos.py) com cada mão do treino duplicada em versão espelhada, para reconhecer tanto a mão direita quanto a esquerda. O script anota o treino em [`results/treinos/classificadores.json`](results/treinos/classificadores.json): data, configurações, perda da SNN a cada época, métricas e versões das bibliotecas.
 
 ### 4. Depois da classificação
 * **Limiar de confiança:** letras com certeza abaixo do limiar (padrão 50%) são ignoradas.
@@ -146,19 +146,20 @@ LibrasMediaPipe/
 ├── .gitignore                          # Arquivos que o git ignora (caches, ambientes)
 ├── .agents/rules/workspace-rules.md    # Regras do workspace para assistentes de IA
 │
-├── data/libras/                        # Dataset de fotos 64x64, uma pasta por letra
-│   ├── train/A..Y/                     # 3.468 fotos de treino
-│   └── test/A..Y/                      # 1.153 fotos de teste
-│
 ├── models/                             # Modelos prontos para uso
 │   ├── gesture_recognizer.task         # MediaPipe .task (treinado no Colab, fica no Git LFS)
 │   ├── rf_libras.pkl                   # Random Forest (gerado por treinar_modelos.py)
 │   ├── svm_libras.pkl                  # SVM (gerado por treinar_modelos.py)
 │   └── snn_libras.pt                   # SNN (gerado por treinar_modelos.py)
 │
+├── notebooks/
+│   ├── treinar_no_colab.ipynb          # Treina os 4 modelos no Google Colab e anota tudo
+│   └── historico/                      # Notebook do treino original do .task
+│
 ├── results/
-│   ├── figures/                        # 12 gráficos (lista em "Resultados e Benchmarks")
-│   └── tables/                         # Cache resumo_libras.npz (criado ao rodar, ignorado pelo git)
+│   ├── figures/                        # Gráficos (lista em "Resultados e Benchmarks")
+│   ├── treinos/                        # Registro de cada treino (task.json, classificadores.json)
+│   └── tables/                         # Cache resumo_libras_kaggle.npz (criado ao rodar, ignorado pelo git)
 │
 ├── web/
 │   └── index.html                      # App no navegador (MediaPipe JS, soletração e voz)
@@ -175,7 +176,7 @@ LibrasMediaPipe/
 │   └── avaliacao/
 │       ├── graficos_modelos.py         # Métricas e gráficos de comparação dos 4 modelos
 │       ├── matriz_confusao_task.py     # Matriz de confusão do .task (Figura 3 do TCC)
-│       └── curvas_treino_task.py       # Curvas do treino do .task no Colab (Figuras 1 e 2)
+│       └── curvas_treino_task.py       # Curvas do treino do .task, lidas de results/treinos/task.json
 │
 └── docs/                               # Documentação técnica do TCC
     ├── README.md                       # Índice da documentação
@@ -265,7 +266,8 @@ Depois abra [http://localhost:8000/web/](http://localhost:8000/web/). A página 
 ```powershell
 python src/treino/treinar_modelos.py
 ```
-* Na primeira vez, passa todas as fotos de `data/libras/train` e `data/libras/test` pelo `.task`, guarda os pontos de cada mão em `results/tables/resumo_libras.npz` e reaproveita esse arquivo nas vezes seguintes (apague-o para extrair de novo). Fotos em que o MediaPipe não acha a mão ficam de fora.
+* As fotos são o dataset [williansoliveira/libras](https://www.kaggle.com/datasets/williansoliveira/libras) do Kaggle (46.262 fotos 64x64, pastas `train/<letra>` e `test/<letra>`), que não fica no GitHub. Na primeira vez, o `kagglehub` baixa o dataset sozinho; para usar uma cópia que já está no computador, defina a variável `LIBRAS_DADOS` com a pasta que contém `train/` e `test/`.
+* Na primeira vez, passa todas as fotos de treino e de teste pelo `.task`, guarda os pontos de cada mão em `results/tables/resumo_libras_kaggle.npz` e reaproveita esse arquivo nas vezes seguintes (apague-o para extrair de novo). Fotos em que o MediaPipe não acha a mão ficam de fora.
 * Treina a SNN, o Random Forest e o SVM sobre o resumo de 128 números.
 * Imprime acurácia, precisão, recall e F1 dos quatro modelos numa tabela separada por tabulação, pronta para colar no Word. A linha do `.task` é medida nas mesmas fotos com mão que os outros três.
 * Salva (e substitui) `models/snn_libras.pt`, `models/rf_libras.pkl` e `models/svm_libras.pkl`, usados pelo app desktop.
@@ -306,7 +308,8 @@ Os quatro modelos são avaliados nas mesmas fotos: as **1.135** fotos de `data/l
 Contando também as 18 fotos sem mão como erro (todas as 1.153 fotos, em `matriz_confusao_task.py`), o `.task` fica com acurácia de 0,877 e F1 de 0,856.
 
 > **Atenção ao ler esses números:** eles medem o desempenho com as **mesmas mãos** que aparecem no treino, não com um usuário novo.
-> * O dataset `data/libras` já chegou dividido em treino e teste; nenhum script do projeto faz essa divisão, e não existe a informação de qual pessoa ou vídeo gerou cada foto.
+> * Os números desta seção foram medidos numa amostra de 4.621 fotos (cerca de 10% do Kaggle) que ficava no repositório até 07/10/2026; eles serão refeitos com as 46.262 fotos pelo notebook do Colab.
+> * O dataset já chegou dividido em treino e teste; nenhum script do projeto faz essa divisão, e não existe a informação de qual pessoa ou vídeo gerou cada foto.
 > * Há pelo menos 4 a 5 mãos diferentes nas fotos, e as mesmas mãos aparecem no treino e no teste. As fotos de teste são um pouco mais diferentes das de treino do que seriam se tivessem sido sorteadas do mesmo conjunto, mas um método que só procura a mão de treino com os pontos (landmarks) mais parecidos (vizinho mais próximo, 1-NN) ainda acerta 99,2% do teste.
 > * Para estimar o acerto com uma pessoa nova, as fotos com mão foram separadas em 6 grupos de gravações parecidas (mesma cor de pele, fundo e iluminação), e o SVM foi treinado sem cada grupo e testado nele. Em 2 dos 6 grupos o acerto caiu para 77% e 88%, com confusões como N e M, P e N, C e O. Nos outros 4 grupos ele ficou entre 93% e 99%. Ou seja, uma mão ou um ambiente bem diferente do treino pode derrubar bastante o acerto, mas isso não acontece com qualquer grupo.
 > * Ao vivo, com uma mão que não está no dataset, os modelos ainda confundem letras parecidas; o caso relatado é U e R. No teste, essa confusão quase não aparece para RF, SVM e SNN (um único caso, no SVM), o que é mais um sinal de que o teste é fácil demais para eles. Trocar os pontos da mão pelo resumo de 128 números não resolveu esse problema.
