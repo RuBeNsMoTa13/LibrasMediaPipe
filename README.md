@@ -121,12 +121,12 @@ Todos recebem o resumo de 128 números e devolvem uma das 21 letras com um grau 
 
 | Classificador | O que é | Configuração usada |
 | :--- | :--- | :--- |
-| **MediaPipe `.task`** | Classificador do MediaPipe, treinado no Google Colab com o MediaPipe Model Maker. | Cabeça pequena, sem camadas escondidas: uma etapa que padroniza os 128 números (BatchNorm), uma que zera os valores negativos (ReLU) e uma camada densa que dá uma nota a cada uma das 22 saídas (as 21 letras e "none", que significa "nenhum gesto"). O log do treino mostra 10 épocas (passadas completas pelas fotos de treino). O tamanho do lote provavelmente foi o padrão do Model Maker (2 fotos por vez), mas isso não está confirmado, porque o notebook e a configuração exata do Colab não estão no repositório. |
+| **MediaPipe `.task`** | Classificador do MediaPipe, treinado no Google Colab com o MediaPipe Model Maker. | Cabeça pequena, sem camadas escondidas: uma etapa que padroniza os 128 números (BatchNorm), uma que zera os valores negativos (ReLU) e uma camada densa que dá uma nota a cada uma das 22 saídas (as 21 letras e "none", que significa "nenhum gesto"). Treinado no Google Colab com [`notebooks/treinar_no_colab.ipynb`](notebooks/treinar_no_colab.ipynb), que usa a pasta `train` para treinar e a `test` só para testar. As configurações e a perda e a acurácia de cada época ficam em [`results/treinos/task.json`](results/treinos/task.json). O notebook do treino original (10 épocas, lotes de 2, `train` e `test` misturados) está em [`notebooks/historico/`](notebooks/historico/Libras_gesture_recognizer.ipynb). |
 | **Random Forest (RF)** | Conjunto de árvores de decisão que votam na letra. | 100 árvores; o resto é o padrão do scikit-learn. |
 | **Support Vector Machine (SVM)** | Separa as letras traçando fronteiras entre os grupos de resumos. | Padronização (`StandardScaler`) + kernel RBF, `C=1`, `gamma='scale'`, `probability=True`. |
 | **Spiking Neural Network (SNN)** | Rede neural inspirada no cérebro, cujos neurônios trocam "pulsos" (*spikes*) ao longo do tempo. | snnTorch. Entrada com os 128 números do resumo, duas camadas escondidas de 128 neurônios LIF e uma camada de saída com 21 neurônios LIF (um por letra), com decaimento 0,9; 25 passos de tempo; otimizador Adam (taxa 0,002); 50 épocas; lotes de 64; perda `mse_count_loss`, que pede que o neurônio da letra certa dispare em 80% dos passos e os outros em 10%. |
 
-RF, SVM e SNN são treinados por [`src/treino/treinar_modelos.py`](src/treino/treinar_modelos.py) com cada mão do treino duplicada em versão espelhada, para reconhecer tanto a mão direita quanto a esquerda.
+RF, SVM e SNN são treinados por [`src/treino/treinar_modelos.py`](src/treino/treinar_modelos.py) com cada mão do treino duplicada em versão espelhada, para reconhecer tanto a mão direita quanto a esquerda. O script anota o treino em [`results/treinos/classificadores.json`](results/treinos/classificadores.json): data, configurações, perda da SNN a cada época, métricas e versões das bibliotecas.
 
 ### 4. Depois da classificação
 * **Limiar de confiança:** letras com certeza abaixo do limiar (padrão 50%) são ignoradas.
@@ -156,8 +156,13 @@ LibrasMediaPipe/
 │   ├── svm_libras.pkl                  # SVM (gerado por treinar_modelos.py)
 │   └── snn_libras.pt                   # SNN (gerado por treinar_modelos.py)
 │
+├── notebooks/
+│   ├── treinar_no_colab.ipynb          # Treina os 4 modelos no Google Colab e anota tudo
+│   └── historico/                      # Notebook do treino original do .task
+│
 ├── results/
-│   ├── figures/                        # 12 gráficos (lista em "Resultados e Benchmarks")
+│   ├── figures/                        # Gráficos (lista em "Resultados e Benchmarks")
+│   ├── treinos/                        # Registro de cada treino (task.json, classificadores.json)
 │   └── tables/                         # Cache resumo_libras.npz (criado ao rodar, ignorado pelo git)
 │
 ├── web/
@@ -175,7 +180,7 @@ LibrasMediaPipe/
 │   └── avaliacao/
 │       ├── graficos_modelos.py         # Métricas e gráficos de comparação dos 4 modelos
 │       ├── matriz_confusao_task.py     # Matriz de confusão do .task (Figura 3 do TCC)
-│       └── curvas_treino_task.py       # Curvas do treino do .task no Colab (Figuras 1 e 2)
+│       └── curvas_treino_task.py       # Curvas do treino do .task, lidas de results/treinos/task.json
 │
 └── docs/                               # Documentação técnica do TCC
     ├── README.md                       # Índice da documentação

@@ -1,0 +1,92 @@
+{
+  "descricao": "Treino original do models/gesture_recognizer.task, feito no Google Colab antes de 07/10/2026 com notebooks/historico/Libras_gesture_recognizer.ipynb (modelo 1 do notebook). O histórico abaixo foi copiado à mão do log do Colab.",
+  "data": null,
+  "dataset": "Kaggle williansoliveira/libras (libras.zip)",
+  "divisao": "pastas train e test juntas e sorteadas em 80% treino, 10% validação e 10% teste (o .task viu fotos de data/libras/test no treino)",
+  "semente": null,
+  "hparams": {
+    "learning_rate": 0.001,
+    "batch_size": 2,
+    "epochs": 10,
+    "lr_decay": 0.99,
+    "gamma": 2,
+    "shuffle": true
+  },
+  "model_options": {
+    "dropout_rate": 0.05,
+    "layer_widths": []
+  },
+  "historico": [
+    {
+      "epoca": 1,
+      "perda_treino": 1.3314,
+      "acuracia_treino": 0.5239,
+      "perda_validacao": 0.2241,
+      "acuracia_validacao": 0.8304
+    },
+    {
+      "epoca": 2,
+      "perda_treino": 0.7486,
+      "acuracia_treino": 0.7054,
+      "perda_validacao": 0.2224,
+      "acuracia_validacao": 0.87
+    },
+    {
+      "epoca": 3,
+      "perda_treino": 0.6605,
+      "acuracia_treino": 0.7335,
+      "perda_validacao": 0.2201,
+      "acuracia_validacao": 0.8546
+    },
+    {
+      "epoca": 4,
+      "perda_treino": 0.6084,
+      "acuracia_treino": 0.7539,
+      "perda_validacao": 0.2352,
+      "acuracia_validacao": 0.8348
+    },
+    {
+      "epoca": 5,
+      "perda_treino": 0.5731,
+      "acuracia_treino": 0.7715,
+      "perda_validacao": 0.2198,
+      "acuracia_validacao": 0.848
+    },
+    {
+      "epoca": 6,
+      "perda_treino": 0.5459,
+      "acuracia_treino": 0.7816,
+      "perda_validacao": 0.2384,
+      "acuracia_validacao": 0.8348
+    },
+    {
+      "epoca": 7,
+      "perda_treino": 0.5371,
+      "acuracia_treino": 0.7836,
+      "perda_validacao": 0.2432,
+      "acuracia_validacao": 0.8568
+    },
+    {
+      "epoca": 8,
+      "perda_treino": 0.524,
+      "acuracia_treino": 0.7907,
+      "perda_validacao": 0.23,
+      "acuracia_validacao": 0.8634
+    },
+    {
+      "epoca": 9,
+      "perda_treino": 0.5149,
+      "acuracia_treino": 0.7951,
+      "perda_validacao": 0.2059,
+      "acuracia_validacao": 0.8568
+    },
+    {
+      "epoca": 10,
+      "perda_treino": 0.5085,
+      "acuracia_treino": 0.7907,
+      "perda_validacao": 0.1948,
+      "acuracia_validacao": 0.8634
+    }
+  ],
+  "teste": null
+}

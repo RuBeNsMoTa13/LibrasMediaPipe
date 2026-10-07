@@ -11,7 +11,7 @@ Forest, SVM e SNN classifiquem a partir da mesma base que o .task. Verificado:
 passando o resumo pelo classificador que vem no .task, o resultado é idêntico
 ao do GestureRecognizer.
 
-Dependência: pip install ai-edge-litert
+Dependência: pip install ai-edge-litert (ou o TensorFlow, se já estiver instalado)
 """
 import io
 import os
@@ -34,7 +34,11 @@ def carregar_rede():
     """Abre o .task (um zip com outro zip dentro) e carrega gesture_embedder.tflite."""
     global _rede
     if _rede is None:
-        from ai_edge_litert.interpreter import Interpreter
+        try:
+            from ai_edge_litert.interpreter import Interpreter
+        except ImportError:
+            # No Colab, depois do Model Maker, o TensorFlow já traz o mesmo leitor
+            from tensorflow.lite.python.interpreter import Interpreter
 
         with zipfile.ZipFile(MODELO) as externo:
             interno = zipfile.ZipFile(io.BytesIO(externo.read("hand_gesture_recognizer.task")))
