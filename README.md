@@ -267,7 +267,7 @@ python src/treino/treinar_modelos.py
 ```
 * Na primeira vez, passa todas as fotos de `data/libras/train` e `data/libras/test` pelo `.task`, guarda os pontos de cada mão em `results/tables/resumo_libras.npz` e reaproveita esse arquivo nas vezes seguintes (apague-o para extrair de novo). Fotos em que o MediaPipe não acha a mão ficam de fora.
 * Treina a SNN, o Random Forest e o SVM sobre o resumo de 128 números.
-* Imprime acurácia, precisão, recall e F1 dos quatro modelos no formato de tabela LaTeX. A linha do `.task` é medida nas mesmas fotos com mão que os outros três.
+* Imprime acurácia, precisão, recall e F1 dos quatro modelos numa tabela separada por tabulação, pronta para colar no Word. A linha do `.task` é medida nas mesmas fotos com mão que os outros três.
 * Salva (e substitui) `models/snn_libras.pt`, `models/rf_libras.pkl` e `models/svm_libras.pkl`, usados pelo app desktop.
 
 ### 4. Avaliação e gráficos

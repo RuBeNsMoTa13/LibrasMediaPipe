@@ -49,7 +49,7 @@ Os caminhos abaixo partem da raiz do repositório, e cada um é um link para o a
 
 **Treino**
 
-* [`src/treino/treinar_modelos.py`](../src/treino/treinar_modelos.py): treina o Random Forest, o SVM e a SNN sobre o resumo de 128 números, salva os três em `models/` e imprime a tabela em LaTeX com as métricas dos quatro modelos, incluindo a linha do `.task` medida nas mesmas fotos de teste.
+* [`src/treino/treinar_modelos.py`](../src/treino/treinar_modelos.py): treina o Random Forest, o SVM e a SNN sobre o resumo de 128 números, salva os três em `models/` e imprime a tabela, pronta para colar no Word, com as métricas dos quatro modelos, incluindo a linha do `.task` medida nas mesmas fotos de teste.
 
 **Avaliação e gráficos** (pasta [`src/avaliacao/`](../src/avaliacao/))
 

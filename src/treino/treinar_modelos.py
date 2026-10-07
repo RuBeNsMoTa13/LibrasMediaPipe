@@ -13,7 +13,8 @@ Fluxo:
      SVM e SNN usavam os pontos da mão centralizados no pulso.
   3. Treina a SNN (neurônios LIF, snnTorch), o Random Forest e o SVM nesses
      resumos, com cada mão também espelhada, e imprime as quatro métricas dos
-     quatro modelos no formato da tabela LaTeX. A linha do .task usa a letra
+     quatro modelos numa tabela separada por tabulação, pronta para colar no
+     Word (Modelo CDI). A linha do .task usa a letra
      que ele mesmo deu a cada foto na extração do passo 1.
   4. Salva os três modelos em models/ (snn_libras.pt, rf_libras.pkl e
      svm_libras.pkl) para o app da webcam, que alterna entre eles com a tecla M.
@@ -148,9 +149,10 @@ for nome, modelo, caminho in [("Random Forest", rf, CAMINHO_RF), ("SVM", svm, CA
 m_task = metricas(teste["y"], teste["pred_task"])
 
 print("\n" + "=" * 65)
-print("VALORES PARA A TABELA NO LATEX (acurácia, precisão, recall, F1)")
+print("TABELA PARA O TCC (copie e cole no Word: as colunas são separadas por tabulação)")
 print("=" * 65)
+print("Modelo\tAcurácia\tPrecisão\tRecall\tF1")
 for nome, m in [("MediaPipe (.task)", m_task), ("Random Forest", m_rf),
                 ("Support Vector Machine", m_svm), ("Spiking Neural Network", m_snn)]:
-    print(f"{nome:<24}& {m[0]:.3f} & {m[1]:.3f} & {m[2]:.3f} & {m[3]:.3f} \\\\")
+    print(nome + "\t" + "\t".join(f"{v:.3f}".replace(".", ",") for v in m))
 print("=" * 65)
