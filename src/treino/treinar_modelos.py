@@ -4,9 +4,9 @@ mesmo "resumo" de 128 números da mão que o gesture_recognizer.task usa, e
 compara os três com o próprio .task nas mesmas fotos de teste.
 
 Fluxo:
-  1. Extrai de cada foto de data/libras/train e data/libras/test os landmarks
-     da imagem, os landmarks 3D e a mão (direita/esquerda), com o próprio .task,
-     e guarda em cache (results/tables/resumo_libras.npz). Fotos em que o
+  1. Extrai de cada foto de train/ e test/ (em data/libras, ou na pasta da
+     variável LIBRAS_DADOS) os landmarks da imagem, os landmarks 3D e a mão
+     (direita/esquerda), com o próprio .task, e guarda em cache (results/tables/resumo_libras.npz). Fotos em que o
      MediaPipe não encontra a mão ficam de fora.
   2. Passa cada mão pela rede gesture_embedder que vem dentro do .task
      (src/classificadores/resumo.py), que devolve 128 números. Antes, RF,
@@ -48,7 +48,7 @@ warnings.filterwarnings("ignore")
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 
 sys.path.insert(0, str(ROOT_DIR / "src"))
-from classificadores.resumo import carregar_dados, espelhar, resumir  # noqa: E402
+from classificadores.resumo import PASTA_DADOS, carregar_dados, espelhar, resumir  # noqa: E402
 from classificadores.snn import SNN, CAMINHO_SNN, salvar_snn  # noqa: E402
 from classificadores.classicos import CAMINHO_RF, CAMINHO_SVM, salvar_classico  # noqa: E402
 
@@ -180,7 +180,8 @@ def versao(modulo):
 
 registro = {
     "data": datetime.now().astimezone().isoformat(timespec="seconds"),
-    "dataset": "Kaggle williansoliveira/libras (data/libras), divisão train/test do próprio dataset",
+    "dataset": "Kaggle williansoliveira/libras, divisão train/test do próprio dataset",
+    "pasta_dados": str(PASTA_DADOS),
     "semente": SEED,
     "fotos": {"treino": int(sum(treino["total"])), "teste": int(sum(teste["total"])),
               "treino_com_mao": len(treino["y"]), "teste_com_mao": len(teste["y"]),

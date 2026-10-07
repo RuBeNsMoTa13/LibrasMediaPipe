@@ -121,7 +121,7 @@ Todos recebem o resumo de 128 números e devolvem uma das 21 letras com um grau 
 
 | Classificador | O que é | Configuração usada |
 | :--- | :--- | :--- |
-| **MediaPipe `.task`** | Classificador do MediaPipe, treinado no Google Colab com o MediaPipe Model Maker. | Cabeça pequena, sem camadas escondidas: uma etapa que padroniza os 128 números (BatchNorm), uma que zera os valores negativos (ReLU) e uma camada densa que dá uma nota a cada uma das 22 saídas (as 21 letras e "none", que significa "nenhum gesto"). Treinado no Google Colab com [`notebooks/treinar_no_colab.ipynb`](notebooks/treinar_no_colab.ipynb), que usa a pasta `train` para treinar e a `test` só para testar. As configurações e a perda e a acurácia de cada época ficam em [`results/treinos/task.json`](results/treinos/task.json). O notebook do treino original (10 épocas, lotes de 2, `train` e `test` misturados) está em [`notebooks/historico/`](notebooks/historico/Libras_gesture_recognizer.ipynb). |
+| **MediaPipe `.task`** | Classificador do MediaPipe, treinado no Google Colab com o MediaPipe Model Maker. | Cabeça pequena, sem camadas escondidas: uma etapa que padroniza os 128 números (BatchNorm), uma que zera os valores negativos (ReLU) e uma camada densa que dá uma nota a cada uma das 22 saídas (as 21 letras e "none", que significa "nenhum gesto"). Treinado no Google Colab com [`notebooks/treinar_no_colab.ipynb`](notebooks/treinar_no_colab.ipynb), com o dataset inteiro do Kaggle (46.262 fotos), usando a pasta `train` para treinar e a `test` só para testar. As configurações e a perda e a acurácia de cada época ficam em [`results/treinos/task.json`](results/treinos/task.json). O notebook do treino original (10 épocas, lotes de 2, `train` e `test` misturados) está em [`notebooks/historico/`](notebooks/historico/Libras_gesture_recognizer.ipynb). |
 | **Random Forest (RF)** | Conjunto de árvores de decisão que votam na letra. | 100 árvores; o resto é o padrão do scikit-learn. |
 | **Support Vector Machine (SVM)** | Separa as letras traçando fronteiras entre os grupos de resumos. | Padronização (`StandardScaler`) + kernel RBF, `C=1`, `gamma='scale'`, `probability=True`. |
 | **Spiking Neural Network (SNN)** | Rede neural inspirada no cérebro, cujos neurônios trocam "pulsos" (*spikes*) ao longo do tempo. | snnTorch. Entrada com os 128 números do resumo, duas camadas escondidas de 128 neurônios LIF e uma camada de saída com 21 neurônios LIF (um por letra), com decaimento 0,9; 25 passos de tempo; otimizador Adam (taxa 0,002); 50 épocas; lotes de 64; perda `mse_count_loss`, que pede que o neurônio da letra certa dispare em 80% dos passos e os outros em 10%. |
@@ -147,8 +147,8 @@ LibrasMediaPipe/
 ├── .agents/rules/workspace-rules.md    # Regras do workspace para assistentes de IA
 │
 ├── data/libras/                        # Dataset de fotos 64x64, uma pasta por letra
-│   ├── train/A..Y/                     # 3.468 fotos de treino
-│   └── test/A..Y/                      # 1.153 fotos de teste
+│   ├── train/A..Y/                     # 3.468 fotos de treino (amostra de ~10% do Kaggle)
+│   └── test/A..Y/                      # 1.153 fotos de teste (o treino no Colab usa as 46.262 do Kaggle)
 │
 ├── models/                             # Modelos prontos para uso
 │   ├── gesture_recognizer.task         # MediaPipe .task (treinado no Colab, fica no Git LFS)

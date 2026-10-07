@@ -23,7 +23,8 @@ from pathlib import Path
 
 # --- 1. CONFIGURAÇÕES ---
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-PASTA_TESTE = str(ROOT_DIR / "data" / "libras" / "test")
+# Padrão: data/libras do projeto; o notebook do Colab troca com LIBRAS_DADOS
+PASTA_TESTE = str(Path(os.environ.get("LIBRAS_DADOS", ROOT_DIR / "data" / "libras")) / "test")
 MODELO = str(ROOT_DIR / "models" / "gesture_recognizer.task")
 OUTPUT_FIGURA = str(ROOT_DIR / "results" / "figures" / "matriz_confusao_task.png")
 

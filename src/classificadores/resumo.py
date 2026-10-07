@@ -23,8 +23,11 @@ import numpy as np
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 MODELO = ROOT_DIR / "models" / "gesture_recognizer.task"
 CACHE = ROOT_DIR / "results" / "tables" / "resumo_libras.npz"
-PASTA_TREINO = ROOT_DIR / "data" / "libras" / "train"
-PASTA_TESTE = ROOT_DIR / "data" / "libras" / "test"
+# Pasta com train/ e test/. Padrão: a amostra de ~10% do Kaggle que fica no
+# projeto. O notebook do Colab troca pelo dataset inteiro com LIBRAS_DADOS.
+PASTA_DADOS = Path(os.environ.get("LIBRAS_DADOS", ROOT_DIR / "data" / "libras"))
+PASTA_TREINO = PASTA_DADOS / "train"
+PASTA_TESTE = PASTA_DADOS / "test"
 TAMANHO = 128
 
 _rede = None

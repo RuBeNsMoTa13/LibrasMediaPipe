@@ -41,8 +41,10 @@ warnings.filterwarnings("ignore")
 
 # --- 1. CONFIGURAÇÃO ---
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-PASTA_TREINO = ROOT_DIR / "data" / "libras" / "train"
-PASTA_TESTE = ROOT_DIR / "data" / "libras" / "test"
+# Mesma pasta de fotos de resumo.py (pode ser trocada com LIBRAS_DADOS)
+PASTA_DADOS = Path(os.environ.get("LIBRAS_DADOS", ROOT_DIR / "data" / "libras"))
+PASTA_TREINO = PASTA_DADOS / "train"
+PASTA_TESTE = PASTA_DADOS / "test"
 SAIDA = ROOT_DIR / "results" / "figures"
 SAIDA.mkdir(parents=True, exist_ok=True)
 
