@@ -1,0 +1,281 @@
+{
+  "data": "2026-10-07T07:34:19+00:00",
+  "dataset": "Kaggle williansoliveira/libras (data/libras), divisão train/test do próprio dataset",
+  "semente": 42,
+  "fotos": {
+    "treino": 3468,
+    "teste": 1153,
+    "treino_com_mao": 3424,
+    "teste_com_mao": 1135,
+    "treino_com_espelhadas": 6848
+  },
+  "entrada": "resumo de 128 números do gesture_embedder (dentro do .task)",
+  "modelos": {
+    "Random Forest": {
+      "n_estimators": 100,
+      "random_state": 42
+    },
+    "Support Vector Machine": {
+      "padronizacao": "StandardScaler",
+      "kernel": "rbf",
+      "C": 1.0,
+      "gamma": "scale",
+      "probability": true
+    },
+    "Spiking Neural Network": {
+      "epocas": 50,
+      "taxa_aprendizado": 0.002,
+      "lote": 64,
+      "otimizador": "Adam",
+      "perda": "mse_count_loss(correct_rate=0.8, incorrect_rate=0.1)",
+      "spikes_saida_por_amostra": 59.63,
+      "historico": [
+        {
+          "epoca": 1,
+          "perda": 0.19229,
+          "acuracia_treino": 0.962909
+        },
+        {
+          "epoca": 2,
+          "perda": 0.062983
+        },
+        {
+          "epoca": 3,
+          "perda": 0.042038
+        },
+        {
+          "epoca": 4,
+          "perda": 0.028356
+        },
+        {
+          "epoca": 5,
+          "perda": 0.021528
+        },
+        {
+          "epoca": 6,
+          "perda": 0.019132
+        },
+        {
+          "epoca": 7,
+          "perda": 0.015927
+        },
+        {
+          "epoca": 8,
+          "perda": 0.026973
+        },
+        {
+          "epoca": 9,
+          "perda": 0.015513
+        },
+        {
+          "epoca": 10,
+          "perda": 0.012331,
+          "acuracia_treino": 0.996495
+        },
+        {
+          "epoca": 11,
+          "perda": 0.012977
+        },
+        {
+          "epoca": 12,
+          "perda": 0.009594
+        },
+        {
+          "epoca": 13,
+          "perda": 0.010219
+        },
+        {
+          "epoca": 14,
+          "perda": 0.008091
+        },
+        {
+          "epoca": 15,
+          "perda": 0.009662
+        },
+        {
+          "epoca": 16,
+          "perda": 0.009
+        },
+        {
+          "epoca": 17,
+          "perda": 0.008365
+        },
+        {
+          "epoca": 18,
+          "perda": 0.010612
+        },
+        {
+          "epoca": 19,
+          "perda": 0.013826
+        },
+        {
+          "epoca": 20,
+          "perda": 0.01117,
+          "acuracia_treino": 0.99854
+        },
+        {
+          "epoca": 21,
+          "perda": 0.008149
+        },
+        {
+          "epoca": 22,
+          "perda": 0.008779
+        },
+        {
+          "epoca": 23,
+          "perda": 0.010257
+        },
+        {
+          "epoca": 24,
+          "perda": 0.007728
+        },
+        {
+          "epoca": 25,
+          "perda": 0.007286
+        },
+        {
+          "epoca": 26,
+          "perda": 0.005767
+        },
+        {
+          "epoca": 27,
+          "perda": 0.004862
+        },
+        {
+          "epoca": 28,
+          "perda": 0.008318
+        },
+        {
+          "epoca": 29,
+          "perda": 0.006496
+        },
+        {
+          "epoca": 30,
+          "perda": 0.005906,
+          "acuracia_treino": 0.997371
+        },
+        {
+          "epoca": 31,
+          "perda": 0.007596
+        },
+        {
+          "epoca": 32,
+          "perda": 0.00823
+        },
+        {
+          "epoca": 33,
+          "perda": 0.008035
+        },
+        {
+          "epoca": 34,
+          "perda": 0.005721
+        },
+        {
+          "epoca": 35,
+          "perda": 0.00722
+        },
+        {
+          "epoca": 36,
+          "perda": 0.00701
+        },
+        {
+          "epoca": 37,
+          "perda": 0.007021
+        },
+        {
+          "epoca": 38,
+          "perda": 0.006914
+        },
+        {
+          "epoca": 39,
+          "perda": 0.005303
+        },
+        {
+          "epoca": 40,
+          "perda": 0.008215,
+          "acuracia_treino": 0.999416
+        },
+        {
+          "epoca": 41,
+          "perda": 0.00621
+        },
+        {
+          "epoca": 42,
+          "perda": 0.006162
+        },
+        {
+          "epoca": 43,
+          "perda": 0.005642
+        },
+        {
+          "epoca": 44,
+          "perda": 0.00498
+        },
+        {
+          "epoca": 45,
+          "perda": 0.004312
+        },
+        {
+          "epoca": 46,
+          "perda": 0.005127
+        },
+        {
+          "epoca": 47,
+          "perda": 0.007462
+        },
+        {
+          "epoca": 48,
+          "perda": 0.005805
+        },
+        {
+          "epoca": 49,
+          "perda": 0.005561
+        },
+        {
+          "epoca": 50,
+          "perda": 0.004515,
+          "acuracia_treino": 0.997371
+        }
+      ]
+    }
+  },
+  "metricas_teste": {
+    "MediaPipe (.task)": {
+      "acuracia": 0.8907,
+      "precisao": 0.9315,
+      "recall": 0.8907,
+      "f1": 0.8628
+    },
+    "Random Forest": {
+      "acuracia": 0.9938,
+      "precisao": 0.994,
+      "recall": 0.9938,
+      "f1": 0.9938
+    },
+    "Support Vector Machine": {
+      "acuracia": 0.9824,
+      "precisao": 0.9856,
+      "recall": 0.9824,
+      "f1": 0.9826
+    },
+    "Spiking Neural Network": {
+      "acuracia": 0.9903,
+      "precisao": 0.9913,
+      "recall": 0.9903,
+      "f1": 0.9902
+    }
+  },
+  "acuracia_teste_espelhado": {
+    "Spiking Neural Network": 0.9903,
+    "Random Forest": 0.9938,
+    "SVM": 0.9824
+  },
+  "versoes": {
+    "python": "3.13.16",
+    "numpy": "2.5.3",
+    "sklearn": "1.9.1",
+    "torch": "2.14.1+cu130",
+    "snntorch": "1.0.0",
+    "mediapipe": "1.1.0"
+  }
+}

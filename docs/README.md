@@ -43,7 +43,7 @@ Os caminhos abaixo partem da raiz do repositório, e cada um é um link para o a
 
 **Classificadores** (pasta [`src/classificadores/`](../src/classificadores/))
 
-* [`src/classificadores/resumo.py`](../src/classificadores/resumo.py): lê a rede `gesture_embedder` de dentro do `.task` e transforma os pontos de uma mão em um resumo de 128 números. Também passa todas as fotos do dataset pelo `.task` e guarda em cache, no arquivo `results/tables/resumo_libras.npz`, os pontos de cada mão e a letra que o `.task` respondeu. O resumo de 128 números não fica no cache: ele é calculado de novo a partir desses pontos a cada execução.
+* [`src/classificadores/resumo.py`](../src/classificadores/resumo.py): lê a rede `gesture_embedder` de dentro do `.task` e transforma os pontos de uma mão em um resumo de 128 números. Também passa todas as fotos do dataset pelo `.task` e guarda em cache, no arquivo `results/tables/resumo_libras_kaggle.npz`, os pontos de cada mão e a letra que o `.task` respondeu. O resumo de 128 números não fica no cache: ele é calculado de novo a partir desses pontos a cada execução.
 * [`src/classificadores/classicos.py`](../src/classificadores/classicos.py): carrega o Random Forest e o SVM salvos em `models/` para o app desktop.
 * [`src/classificadores/snn.py`](../src/classificadores/snn.py): define a arquitetura da SNN (rede neural de impulsos) e carrega o modelo salvo em `models/`.
 

@@ -12,15 +12,14 @@ Gráficos salvos em results/figures/:
   - matriz_confusao_rf.png / _svm.png / _snn.png
     (a matriz do .task é feita por src/avaliacao/matriz_confusao_task.py)
 
-Todos os modelos são avaliados nas MESMAS fotos de teste: as de data/libras/test
+Todos os modelos são avaliados nas MESMAS fotos de teste: as da pasta test do Kaggle
 em que o MediaPipe encontrou uma mão. RF, SVM e SNN usam o mesmo resumo de 128
 números da mão que o .task (src/classificadores/resumo.py) e repetem a receita de
 src/treino/treinar_modelos.py: mãos espelhadas, mesma padronização, mesmas sementes.
 
 Uso: python src/avaliacao/graficos_modelos.py
-Dependências: pip install torch snntorch scikit-learn matplotlib seaborn mediapipe opencv-python ai-edge-litert
+Dependências: pip install torch snntorch scikit-learn matplotlib seaborn mediapipe opencv-python ai-edge-litert kagglehub
 """
-import os
 import sys
 import warnings
 from pathlib import Path
@@ -41,8 +40,6 @@ warnings.filterwarnings("ignore")
 
 # --- 1. CONFIGURAÇÃO ---
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-PASTA_TREINO = ROOT_DIR / "data" / "libras" / "train"
-PASTA_TESTE = ROOT_DIR / "data" / "libras" / "test"
 SAIDA = ROOT_DIR / "results" / "figures"
 SAIDA.mkdir(parents=True, exist_ok=True)
 
@@ -127,16 +124,18 @@ def metricas(y_true, y_pred):
 
 # --- 4. GRÁFICOS ---
 def grafico_distribuicao(classes):
-    treino = [len(os.listdir(PASTA_TREINO / c)) for c in classes]
-    teste = [len(os.listdir(PASTA_TESTE / c)) for c in classes]
+    total_treino = dict(zip(treino["letras"], treino["total"]))
+    total_teste = dict(zip(teste["letras"], teste["total"]))
+    treino_n = [total_treino[c] for c in classes]
+    teste_n = [total_teste[c] for c in classes]
     x = np.arange(len(classes))
     plt.figure(figsize=(11, 4.5))
-    plt.bar(x - 0.2, treino, 0.38, color="#2a78d6", label=f"Treino ({sum(treino)})")
-    plt.bar(x + 0.2, teste, 0.38, color="#eb6834", label=f"Teste ({sum(teste)})")
+    plt.bar(x - 0.2, treino_n, 0.38, color="#2a78d6", label=f"Treino ({sum(treino_n)})")
+    plt.bar(x + 0.2, teste_n, 0.38, color="#eb6834", label=f"Teste ({sum(teste_n)})")
     plt.xticks(x, classes)
     plt.grid(axis="x", visible=False)
     plt.ylabel("Imagens")
-    plt.ylim(0, max(treino) * 1.2)
+    plt.ylim(0, max(treino_n) * 1.2)
     plt.title("Imagens por letra no dataset")
     plt.legend(loc="upper center", ncol=2)
     salvar("distribuicao_amostras.png")

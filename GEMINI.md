@@ -8,7 +8,7 @@ Este documento consolida a arquitetura, as convenções e os modos de operação
 
 * **Objetivo acadêmico:** reconhecer em tempo real as letras do alfabeto manual da Língua Brasileira de Sinais (LIBRAS) e comparar quatro classificadores sobre a mesma base. O primeiro é o modelo pronto do MediaPipe (`models/gesture_recognizer.task`), treinado no Google Colab com o MediaPipe Model Maker. Os outros três são treinados neste repositório: Random Forest, SVM e uma rede neural de impulsos (SNN, do inglês *Spiking Neural Network*). Os três classificam o mesmo "resumo" de 128 números da mão que o `.task` usa por dentro, para que a comparação seja justa.
 * **Letras:** 21 letras, as que existem no dataset: A B C D E F G I L M N O P Q R S T U V W Y.
-* **Entrada de dados:** imagens da webcam (nas aplicações) e fotos 64x64 do dataset `data/libras` (no treino e na avaliação).
+* **Entrada de dados:** imagens da webcam (nas aplicações) e fotos 64x64 do dataset williansoliveira/libras do Kaggle (46.262 fotos, baixadas pelo `kagglehub`; não ficam no repositório) no treino e na avaliação.
 * **Extração de atributos:** o MediaPipe encontra a mão e devolve 21 pontos (landmarks) na imagem, os mesmos 21 pontos em 3D, em metros, e se a mão é direita ou esquerda. A rede `gesture_embedder`, que vem dentro do `.task`, transforma essas informações no resumo de 128 números (`src/classificadores/resumo.py`).
 * **Saída:** a letra com a sua confiança, um limiar de confiança ajustável (padrão de 50%), um buffer que junta as letras em palavras (soletração, com intervalo mínimo de 0,7 s entre letras) e a leitura do texto em voz alta.
 
@@ -75,11 +75,6 @@ LibrasMediaPipe/
 ├── .gitattributes                      # Git LFS para o .task (os .pkl e .pt ficam no git normal)
 ├── .gitignore
 │
-├── data/
-│   └── libras/                         # Fotos 64x64, já recebidas divididas em treino e teste
-│       ├── train/ (A..Y)               # 3.468 fotos
-│       └── test/ (A..Y)                # 1.153 fotos
-│
 ├── models/
 │   ├── gesture_recognizer.task         # Modelo do MediaPipe Model Maker, treinado no Colab
 │   ├── rf_libras.pkl                   # Random Forest
@@ -88,7 +83,7 @@ LibrasMediaPipe/
 │
 ├── results/
 │   ├── figures/                        # 12 gráficos (lista na seção 4.4)
-│   └── tables/                         # Cache resumo_libras.npz (ignorado pelo git)
+│   └── tables/                         # Cache resumo_libras_kaggle.npz (ignorado pelo git)
 │
 ├── web/
 │   └── index.html                      # App no navegador (MediaPipe JS), publicado no Space estático

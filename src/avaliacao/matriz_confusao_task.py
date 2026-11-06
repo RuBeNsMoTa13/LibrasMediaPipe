@@ -1,6 +1,6 @@
 """
 Matriz de confusão e relatório de classificação do gesture_recognizer.task
-(Figura 3 do TCC) nas fotos de data/libras/test.
+(Figura 3 do TCC) nas fotos de teste do dataset do Kaggle.
 
 Passa TODAS as fotos de teste pelo .task. Quando o MediaPipe não encontra a
 mão, a previsão conta como "Nenhum" (erro). Por isso a acurácia aqui (0,877)
@@ -11,6 +11,7 @@ Figura salva em results/figures/matriz_confusao_task.png
 Uso: python src/avaliacao/matriz_confusao_task.py
 """
 import os
+import sys
 import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
@@ -23,7 +24,11 @@ from pathlib import Path
 
 # --- 1. CONFIGURAÇÕES ---
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-PASTA_TESTE = str(ROOT_DIR / "data" / "libras" / "test")
+sys.path.insert(0, str(ROOT_DIR / "src"))
+from classificadores.resumo import pasta_dados  # noqa: E402
+
+# Fotos de teste do dataset do Kaggle (ou da pasta em LIBRAS_DADOS)
+PASTA_TESTE = str(pasta_dados() / "test")
 MODELO = str(ROOT_DIR / "models" / "gesture_recognizer.task")
 OUTPUT_FIGURA = str(ROOT_DIR / "results" / "figures" / "matriz_confusao_task.png")
 

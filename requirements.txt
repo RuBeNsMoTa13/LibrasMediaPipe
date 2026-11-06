@@ -7,6 +7,8 @@ pyttsx3
 
 # Resumo de 128 números da mão, lido de dentro do .task (src/classificadores/resumo.py)
 ai-edge-litert
+# Baixa o dataset do Kaggle no treino e na avaliação
+kagglehub
 
 # Random Forest, SVM e SNN (src/treino/treinar_modelos.py e a tecla M do app)
 scikit-learn
