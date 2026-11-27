@@ -162,12 +162,11 @@ python src/avaliacao/curvas_treino_task.py
 
 ## 5. Cuidados com as Métricas
 
-As métricas do projeto foram medidas nas fotos de `data/libras/test`, que já veio separada do treino e tem as mesmas mãos do treino (pelo menos 4 a 5 mãos diferentes, contadas pela cor da pele e pelos acessórios, e não uma pessoa só). Por isso elas mostram o acerto com mãos já vistas, e não com um usuário novo. Esse problema se chama vazamento: o teste repete as mãos do treino. Ao falar dos resultados, leve em conta também:
+As métricas do projeto foram medidas nas 11.402 fotos de teste da base completa do Kaggle (46.262 fotos) em que o MediaPipe encontrou a mão. A pasta `test` já veio separada do treino e tem as mesmas mãos do treino (pelo menos 4 a 5 mãos diferentes, contadas pela cor da pele e pelos acessórios, e não uma pessoa só). Por isso elas mostram o acerto com mãos já vistas, e não com um usuário novo. Esse problema se chama vazamento: o teste repete as mãos do treino. Ao falar dos resultados, leve em conta também:
 
-* **Teste por grupo de gravação.** A auditoria de outubro de 2026 separou as fotos em 6 grupos de gravações parecidas e treinou o SVM deixando um grupo de fora de cada vez. Em 2 dos 6 grupos, o acerto do SVM no grupo deixado de fora caiu para 77% e 88%. Nos outros 4 grupos, ele ficou entre 93% e 99%. Não diga que qualquer grupo deixado de fora derruba o acerto.
+* **Teste por grupo de gravação.** As fotos foram separadas em 6 grupos de gravações parecidas, e o SVM foi treinado deixando um grupo de fora de cada vez. Em 1 dos 6 grupos, o acerto no grupo deixado de fora caiu para 82%, e em outro para 95,5%. Nos outros 4 grupos, ele ficou entre 97,9% e 98,7%. Não diga que qualquer grupo deixado de fora derruba o acerto.
 * **Uso ao vivo.** Com uma mão nova na frente da webcam, os modelos ainda confundem letras parecidas; o caso relatado foi U com R. O resumo de 128 números não resolveu o vazamento.
-* **O 0,891 do `.task`.** Esse acerto não é um resultado "mais realista": o `.task` acerta cerca de 0,89 até nas fotos de treino, porque foi pouco treinado. O log do Colab confirma só as 10 épocas (passadas completas pelas fotos de treino). Os lotes de 2 fotos são o padrão do Model Maker e, por isso, a configuração provável, mas não confirmada.
-* **Texto do TCC de 18/09.** Ele cita normalização no pulso, divisão 70/15/15 e a base V-LIBRASIL. Nenhum código do repositório fez a divisão 70/15/15 nem usou a V-LIBRASIL. A normalização no pulso só existiu nas primeiras versões de RF, SVM e SNN (seção 3) e nunca foi usada no script que gerou a Tabela 1, que usava as coordenadas cruas da tela.
+* **Fotos sem mão.** A tabela principal usa só as fotos com mão para os quatro modelos. Contando as 146 fotos sem mão como erro, o `.task` cai de 0,992 para 0,980.
 
 Os detalhes e os próximos passos estão em [docs/avaliacao/metodologia-e-limitacoes.md](docs/avaliacao/metodologia-e-limitacoes.md).
 

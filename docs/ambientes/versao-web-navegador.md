@@ -39,7 +39,7 @@ A nova versão é um único arquivo, `web/index.html`, em HTML e JavaScript puro
 * **O mesmo `gesture_recognizer.task`** treinado no MediaPipe Model Maker, sem conversão.
 * **APIs do navegador:** `getUserMedia` para a webcam, `canvas` para desenhar o vídeo e os pontos da mão, e Web Speech API para falar o texto em pt-BR.
 
-O laço principal usa `requestAnimationFrame`, a função do navegador que chama o código a cada atualização da tela, e só processa quando a câmera entrega um frame novo. Cada frame é espelhado no `canvas`, como o `cv2.flip` da versão desktop, e passado a `recognizeForVideo`. A interface mantém os recursos da versão local: limiar de confiança ajustável (50% por padrão), intervalo mínimo de 0,7 s entre letras para montar palavras, botões de espaço, apagar e limpar, e síntese de voz.
+O laço principal usa `requestAnimationFrame`, a função do navegador que chama o código a cada atualização da tela, e só processa quando a câmera entrega um frame novo. Cada frame é espelhado no `canvas`, como o `cv2.flip` da versão desktop, e passado a `recognizeForVideo`. Desde 27/11/2026 o HUD (as informações desenhadas sobre o vídeo) é igual ao da versão desktop: tela de 1280×720, barra superior com o sinal, a confiança, o limiar e o modelo, barra inferior com o modo de voz e a legenda, e o manual de atalhos aberto pela tecla H, com as mesmas cores, textos e posições de `src/desktop/detectar_libras.py`. A única diferença é que a web usa só o `.task`, então não tem a tecla M para trocar de modelo. A interface mantém os recursos da versão local: limiar de confiança ajustável (50% por padrão), intervalo mínimo de 0,7 s entre letras para montar palavras, botões de espaço, apagar e limpar, e síntese de voz.
 
 ```mermaid
 flowchart LR
@@ -71,7 +71,7 @@ A versão nova elimina a rede do caminho de cada frame, e com isso as quatro cau
 
 Os testes foram feitos no Chromium, em um servidor de nuvem sem GPU, em 4 de outubro de 2026:
 
-* **Acurácia:** o modelo rodando no navegador acertou 267 de 315 imagens (85%), o que confirma que o `.task` funciona no navegador sem conversão. Essas 315 imagens foram uma amostra das 1.153 fotos de teste de `data/libras/test`, usada só para essa conferência, e o critério de escolha da amostra não ficou registrado. Por isso o 85% não é a métrica oficial do `.task` e não deve ser comparado diretamente com ela. Com todas as fotos de teste, o `.task` acerta 0,891 (89,1%) das 1.135 fotos em que o MediaPipe encontrou a mão e 0,877 (87,7%) quando as 18 fotos sem mão contam como erro. Esses números estão na seção de resultados do [README principal](../../README.md).
+* **Acurácia:** o `.task` roda no navegador sem conversão, e o modelo é o mesmo avaliado no TCC. O `.task` atual, treinado em 26/11/2026 com a base completa, acerta 0,992 (99,2%) das 11.402 fotos de teste em que o MediaPipe encontrou a mão e 0,980 (98,0%) quando as 146 fotos sem mão contam como erro. Esses números estão na seção de resultados do [README principal](../../README.md).
 * **Velocidade:** com uma câmera simulada, a inferência levou 64 ms por frame, ou cerca de 15 FPS, usando apenas a CPU. Em um computador com placa de vídeo o desempenho tende a ser maior, mas isso não foi medido.
 
 Mesmo no pior caso medido, são cerca de 15 reconhecimentos por segundo contra um a cada 1,5 s na versão antiga.

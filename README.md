@@ -175,7 +175,7 @@ LibrasMediaPipe/
 │   │   └── treinar_modelos.py          # Treina RF, SVM e SNN e salva em models/
 │   └── avaliacao/
 │       ├── graficos_modelos.py         # Métricas e gráficos de comparação dos 4 modelos
-│       ├── matriz_confusao_task.py     # Matriz de confusão do .task (Figura 3 do TCC)
+│       ├── matriz_confusao_task.py     # Matriz de confusão do .task (Figura 17 do TCC)
 │       └── curvas_treino_task.py       # Curvas do treino do .task, lidas de results/treinos/task.json
 │
 └── docs/                               # Documentação técnica do TCC
@@ -280,40 +280,40 @@ python src/treino/treinar_modelos.py
   ```
   Treina de novo RF, SVM e SNN com a mesma receita do treino (sem mexer nos arquivos de `models/`), imprime a tabela de métricas e salva nove gráficos em `results/figures/`: as matrizes de confusão de RF, SVM e SNN, as duas curvas da SNN, a comparação de métricas, o F1 por letra, a distribuição das fotos e a detecção de mãos por letra.
 
-* **Matriz de confusão do `.task` (Figura 3 do TCC):**
+* **Matriz de confusão do `.task` (Figura 17 do TCC):**
   ```powershell
   python src/avaliacao/matriz_confusao_task.py
   ```
-  Passa as 1.153 fotos de teste pelo `.task`. Quando o MediaPipe não acha a mão, a resposta conta como erro, com o nome "Nenhum". Imprime o relatório de classificação por letra e salva `results/figures/matriz_confusao_task.png`.
+  Passa as 11.548 fotos de teste pelo `.task`. Quando o MediaPipe não acha a mão, a resposta conta como erro, com o nome "Nenhum". Imprime o relatório de classificação por letra e salva `results/figures/matriz_confusao_task.png`.
 
-* **Curvas do treino do `.task` (Figuras 1 e 2 do TCC):**
+* **Curvas do treino do `.task` (Figuras 15 e 16 do TCC):**
   ```powershell
   python src/avaliacao/curvas_treino_task.py
   ```
-  Não treina nada: desenha a acurácia e a perda das 10 épocas do treino feito no Colab, a partir de números copiados do log desse treino. Salva `results/figures/task_curva_acuracia.png` e `results/figures/task_curva_perda.png`.
+  Não treina nada: desenha a acurácia e a perda das 100 épocas do treino feito no Colab com o Model Maker (`notebooks/retreinar_task_py310.ipynb`), a partir de `results/treinos/task.json`. Salva `results/figures/task_curva_acuracia.png` e `results/figures/task_curva_perda.png`.
 
 ---
 
 ## 📊 Resultados e Benchmarks
 
-Os quatro modelos são avaliados nas mesmas fotos: as **1.135** fotos de `data/libras/test` (de um total de 1.153) em que o MediaPipe encontrou a mão. Os valores são impressos por `treinar_modelos.py` e por `graficos_modelos.py`. Precisão, recall e F1 são calculados letra por letra e depois resumidos numa média ponderada pelo número de fotos de cada letra. Por isso o F1 geral não é a média direta da precisão e do recall gerais e pode ficar abaixo dos dois, como acontece com o `.task` (F1 de 0,863, com precisão de 0,931 e recall de 0,891).
+Os quatro modelos são treinados com a pasta `train` da base completa do Kaggle (34.714 fotos) e avaliados nas mesmas fotos: as **11.402** fotos da pasta `test` (de um total de 11.548) em que o MediaPipe encontrou a mão. Nenhuma delas entra no treino de algum modelo. Os valores são impressos por `treinar_modelos.py` e por `graficos_modelos.py`. Precisão, recall e F1 são calculados letra por letra e depois resumidos numa média ponderada pelo número de fotos de cada letra.
 
 | Modelo | Acurácia | Precisão Ponderada | Recall Ponderado | F1 Ponderado |
 | :--- | :---: | :---: | :---: | :---: |
-| **MediaPipe Tasks (`gesture_recognizer.task`)** | 0,891 | 0,931 | 0,891 | 0,863 |
-| **Random Forest (100 árvores)** | 0,994 | 0,994 | 0,994 | 0,994 |
-| **Support Vector Machine (SVM - RBF)** | 0,982 | 0,986 | 0,982 | 0,983 |
-| **Spiking Neural Network (SNN - LIF)** | 0,990 | 0,991 | 0,990 | 0,990 |
+| **MediaPipe Tasks (`gesture_recognizer.task`)** | 0,992 | 0,993 | 0,992 | 0,992 |
+| **Random Forest (100 árvores)** | 0,997 | 0,997 | 0,997 | 0,997 |
+| **Support Vector Machine (SVM - RBF)** | 0,991 | 0,992 | 0,991 | 0,991 |
+| **Spiking Neural Network (SNN - LIF)** | 0,989 | 0,989 | 0,989 | 0,989 |
 
-Contando também as 18 fotos sem mão como erro (todas as 1.153 fotos, em `matriz_confusao_task.py`), o `.task` fica com acurácia de 0,877 e F1 de 0,856.
+Contando também as 146 fotos sem mão como erro (todas as 11.548 fotos, em `matriz_confusao_task.py`), o `.task` fica com acurácia de 0,980.
+
+O `.task` foi treinado de novo em 26/11/2026 com o MediaPipe Model Maker 0.2.1.4 no Colab (Python 3.10), só com a pasta `train`, por 100 épocas e com lotes de 32 fotos ([`notebooks/retreinar_task_py310.ipynb`](notebooks/retreinar_task_py310.ipynb)). O treino de 2025, com a configuração padrão (10 épocas e lotes de 2), acertava só 0,891 e estava subtreinado. Como o Model Maker não é mais atualizado, [`notebooks/treinar_task_sem_modelmaker.ipynb`](notebooks/treinar_task_sem_modelmaker.ipynb) faz o mesmo treino em Keras, no Python atual do Colab, e chegou a 0,993.
 
 > **Atenção ao ler esses números:** eles medem o desempenho com as **mesmas mãos** que aparecem no treino, não com um usuário novo.
-> * Os números desta seção foram medidos numa amostra de 4.621 fotos (cerca de 10% do Kaggle) que ficava no repositório até 07/10/2026; eles serão refeitos com as 46.262 fotos pelo notebook do Colab.
 > * O dataset já chegou dividido em treino e teste; nenhum script do projeto faz essa divisão, e não existe a informação de qual pessoa ou vídeo gerou cada foto.
-> * Há pelo menos 4 a 5 mãos diferentes nas fotos, e as mesmas mãos aparecem no treino e no teste. As fotos de teste são um pouco mais diferentes das de treino do que seriam se tivessem sido sorteadas do mesmo conjunto, mas um método que só procura a mão de treino com os pontos (landmarks) mais parecidos (vizinho mais próximo, 1-NN) ainda acerta 99,2% do teste.
-> * Para estimar o acerto com uma pessoa nova, as fotos com mão foram separadas em 6 grupos de gravações parecidas (mesma cor de pele, fundo e iluminação), e o SVM foi treinado sem cada grupo e testado nele. Em 2 dos 6 grupos o acerto caiu para 77% e 88%, com confusões como N e M, P e N, C e O. Nos outros 4 grupos ele ficou entre 93% e 99%. Ou seja, uma mão ou um ambiente bem diferente do treino pode derrubar bastante o acerto, mas isso não acontece com qualquer grupo.
+> * Há pelo menos 4 a 5 mãos diferentes nas fotos, e as mesmas mãos aparecem no treino e no teste. As fotos de teste são um pouco mais diferentes das de treino do que seriam se tivessem sido sorteadas do mesmo conjunto, mas um método que só procura a mão de treino com os pontos (landmarks) mais parecidos (vizinho mais próximo, 1-NN) ainda acerta 99,8% do teste.
+> * Para estimar o acerto com uma pessoa nova, as fotos com mão foram separadas em 6 grupos de gravações parecidas (mesma cor de pele, fundo e iluminação), e o SVM foi treinado sem cada grupo e testado nele. Em 1 dos 6 grupos o acerto caiu para 82%, com confusões como P e N, N e M, C e O; em outro, caiu para 95,5%, quase todo por F lido como T. Nos outros 4 grupos ele ficou entre 97,9% e 98,7%, contra cerca de 99,5% quando o mesmo número de fotos é sorteado. Ou seja, uma mão ou um ambiente bem diferente do treino pode derrubar bastante o acerto, mas isso não acontece com qualquer grupo.
 > * Ao vivo, com uma mão que não está no dataset, os modelos ainda confundem letras parecidas; o caso relatado é U e R. No teste, essa confusão quase não aparece para RF, SVM e SNN (um único caso, no SVM), o que é mais um sinal de que o teste é fácil demais para eles. Trocar os pontos da mão pelo resumo de 128 números não resolveu esse problema.
-> * O 0,891 do `.task` **não** quer dizer que ele seja "mais realista". Ele acerta cerca de 0,89 até nas fotos de treino, ou seja, está subtreinado: não aprendeu bem nem os exemplos que viu. A causa provável é a configuração padrão do Model Maker (lotes de 2 fotos e 10 épocas); o log do Colab confirma só as 10 épocas, e o lote de 2 é uma dedução. A mesma cabeça, treinada com lotes maiores e mais épocas, chega a 0,99.
 >
 > A explicação completa, os próximos testes recomendados (como um teste com uma mão que nunca foi usada no treino) e as diferenças entre o texto do TCC e o que o código faz estão em [docs/avaliacao/metodologia-e-limitacoes.md](docs/avaliacao/metodologia-e-limitacoes.md).
 
@@ -323,8 +323,8 @@ Todos ficam em [`results/figures/`](results/figures).
 
 | Gráfico | O que mostra | Script |
 | :--- | :--- | :--- |
-| `task_curva_acuracia.png` / `task_curva_perda.png` | Acurácia e perda por época do treino do `.task` no Colab (Figuras 1 e 2 do TCC) | `curvas_treino_task.py` |
-| `matriz_confusao_task.png` | Matriz de confusão do `.task` em todas as fotos de teste, com "Nenhum" para foto sem mão (Figura 3 do TCC) | `matriz_confusao_task.py` |
+| `task_curva_acuracia.png` / `task_curva_perda.png` | Acurácia e perda por época do treino do `.task` no Colab (Figuras 15 e 16 do TCC) | `curvas_treino_task.py` |
+| `matriz_confusao_task.png` | Matriz de confusão do `.task` em todas as fotos de teste, com "Nenhum" para foto sem mão (Figura 17 do TCC) | `matriz_confusao_task.py` |
 | `matriz_confusao_rf.png` | Matriz de confusão do Random Forest | `graficos_modelos.py` |
 | `matriz_confusao_svm.png` | Matriz de confusão do SVM | `graficos_modelos.py` |
 | `matriz_confusao_snn.png` | Matriz de confusão da SNN | `graficos_modelos.py` |

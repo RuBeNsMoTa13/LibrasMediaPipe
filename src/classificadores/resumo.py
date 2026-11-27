@@ -151,9 +151,13 @@ def carregar_dados():
         from mediapipe.tasks import python
         from mediapipe.tasks.python import vision
 
+        from mediapipe.tasks.python.components.processors import ClassifierOptions
+
+        # score_threshold=0: pred_task é sempre a letra mais provável do .task
         recognizer = vision.GestureRecognizer.create_from_options(vision.GestureRecognizerOptions(
             base_options=python.BaseOptions(model_asset_path=str(MODELO)),
-            running_mode=vision.RunningMode.IMAGE))
+            running_mode=vision.RunningMode.IMAGE,
+            custom_gesture_classifier_options=ClassifierOptions(score_threshold=0.0)))
         print("\nExtraindo landmarks do TREINO...")
         treino = _extrair_pasta(recognizer, pasta_dados() / "train")
         print("\nExtraindo landmarks do TESTE...")
