@@ -1,11 +1,12 @@
 """
 Matriz de confusão e relatório de classificação do gesture_recognizer.task
-(Figura 3 do TCC) nas fotos de teste do dataset do Kaggle.
+(Figura 17 do TCC) nas fotos de teste do dataset do Kaggle.
 
 Passa TODAS as fotos de teste pelo .task. Quando o MediaPipe não encontra a
-mão, a previsão conta como "Nenhum" (erro). Por isso a acurácia aqui (0,877)
-fica um pouco abaixo da de graficos_modelos.py (0,891), que só usa as fotos em
-que a mão foi encontrada, como os outros três modelos.
+mão, a previsão conta como "Nenhum" (erro). Por isso a acurácia aqui
+fica um pouco abaixo da de graficos_modelos.py, que só usa as fotos em
+que a mão foi encontrada, como os outros três modelos. Na base completa (11.548
+fotos de teste), o .task acerta 0,980 aqui e 0,992 só nas fotos com mão.
 
 Figura salva em results/figures/matriz_confusao_task.png
 Uso: python src/avaliacao/matriz_confusao_task.py
@@ -36,9 +37,14 @@ OUTPUT_FIGURA = str(ROOT_DIR / "results" / "figures" / "matriz_confusao_task.png
 # --- 2. PREPARAR O MEDIAPIPE ---
 # RunningMode.IMAGE porque são fotos paradas, não webcam
 base_options = python.BaseOptions(model_asset_path=MODELO)
+# score_threshold=0: sempre devolve a letra mais provável do classificador
+# treinado. Com o limiar padrão (0,5), as fotos de pouca confiança voltariam
+# com o gesto padrão do Google ou sem nome, e seriam contadas como erro.
 options = vision.GestureRecognizerOptions(
     base_options=base_options,
-    running_mode=vision.RunningMode.IMAGE 
+    running_mode=vision.RunningMode.IMAGE,
+    custom_gesture_classifier_options=mp.tasks.components.processors.ClassifierOptions(
+        score_threshold=0.0),
 )
 recognizer = vision.GestureRecognizer.create_from_options(options)
 

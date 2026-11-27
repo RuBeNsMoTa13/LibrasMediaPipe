@@ -1,8 +1,8 @@
 """
-Curvas de acurácia e perda do treino do gesture_recognizer.task (Figuras 1 e 2 do TCC).
+Curvas de acurácia e perda do treino do gesture_recognizer.task (Figuras 15 e 16 do TCC).
 
 O .task é treinado no Google Colab com o MediaPipe Model Maker
-(notebooks/treinar_no_colab.ipynb). O notebook anota o treino em
+(notebooks/retreinar_task_py310.ipynb). O treino está anotado em
 results/treinos/task.json, com a perda e a acurácia de cada época; este script
 só lê esse registro e desenha os gráficos, não treina nada.
 

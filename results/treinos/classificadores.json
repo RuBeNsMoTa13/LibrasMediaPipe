@@ -1,13 +1,14 @@
 {
-  "data": "2026-10-07T07:34:19+00:00",
-  "dataset": "Kaggle williansoliveira/libras (data/libras), divisão train/test do próprio dataset",
+  "data": "2026-11-27T02:51:26+00:00",
+  "dataset": "Kaggle williansoliveira/libras, divisão train/test do próprio dataset",
+  "pasta_dados": "libras.zip do Kaggle extraído (train/ e test/)",
   "semente": 42,
   "fotos": {
-    "treino": 3468,
-    "teste": 1153,
-    "treino_com_mao": 3424,
-    "teste_com_mao": 1135,
-    "treino_com_espelhadas": 6848
+    "treino": 34714,
+    "teste": 11548,
+    "treino_com_mao": 34284,
+    "teste_com_mao": 11402,
+    "treino_com_espelhadas": 68568
   },
   "entrada": "resumo de 128 números do gesture_embedder (dentro do .task)",
   "modelos": {
@@ -28,254 +29,254 @@
       "lote": 64,
       "otimizador": "Adam",
       "perda": "mse_count_loss(correct_rate=0.8, incorrect_rate=0.1)",
-      "spikes_saida_por_amostra": 59.63,
+      "spikes_saida_por_amostra": 59.99,
       "historico": [
         {
           "epoca": 1,
-          "perda": 0.19229,
-          "acuracia_treino": 0.962909
+          "perda": 0.043441,
+          "acuracia_treino": 0.99755
         },
         {
           "epoca": 2,
-          "perda": 0.062983
+          "perda": 0.010127
         },
         {
           "epoca": 3,
-          "perda": 0.042038
+          "perda": 0.008154
         },
         {
           "epoca": 4,
-          "perda": 0.028356
+          "perda": 0.006658
         },
         {
           "epoca": 5,
-          "perda": 0.021528
+          "perda": 0.005143
         },
         {
           "epoca": 6,
-          "perda": 0.019132
+          "perda": 0.005489
         },
         {
           "epoca": 7,
-          "perda": 0.015927
+          "perda": 0.004729
         },
         {
           "epoca": 8,
-          "perda": 0.026973
+          "perda": 0.00429
         },
         {
           "epoca": 9,
-          "perda": 0.015513
+          "perda": 0.003957
         },
         {
           "epoca": 10,
-          "perda": 0.012331,
-          "acuracia_treino": 0.996495
+          "perda": 0.0032,
+          "acuracia_treino": 0.993846
         },
         {
           "epoca": 11,
-          "perda": 0.012977
+          "perda": 0.003575
         },
         {
           "epoca": 12,
-          "perda": 0.009594
+          "perda": 0.003849
         },
         {
           "epoca": 13,
-          "perda": 0.010219
+          "perda": 0.003265
         },
         {
           "epoca": 14,
-          "perda": 0.008091
+          "perda": 0.003681
         },
         {
           "epoca": 15,
-          "perda": 0.009662
+          "perda": 0.00337
         },
         {
           "epoca": 16,
-          "perda": 0.009
+          "perda": 0.002706
         },
         {
           "epoca": 17,
-          "perda": 0.008365
+          "perda": 0.002929
         },
         {
           "epoca": 18,
-          "perda": 0.010612
+          "perda": 0.002851
         },
         {
           "epoca": 19,
-          "perda": 0.013826
+          "perda": 0.002879
         },
         {
           "epoca": 20,
-          "perda": 0.01117,
-          "acuracia_treino": 0.99854
+          "perda": 0.003293,
+          "acuracia_treino": 0.998775
         },
         {
           "epoca": 21,
-          "perda": 0.008149
+          "perda": 0.002704
         },
         {
           "epoca": 22,
-          "perda": 0.008779
+          "perda": 0.002984
         },
         {
           "epoca": 23,
-          "perda": 0.010257
+          "perda": 0.003283
         },
         {
           "epoca": 24,
-          "perda": 0.007728
+          "perda": 0.002905
         },
         {
           "epoca": 25,
-          "perda": 0.007286
+          "perda": 0.001946
         },
         {
           "epoca": 26,
-          "perda": 0.005767
+          "perda": 0.002785
         },
         {
           "epoca": 27,
-          "perda": 0.004862
+          "perda": 0.002665
         },
         {
           "epoca": 28,
-          "perda": 0.008318
+          "perda": 0.00318
         },
         {
           "epoca": 29,
-          "perda": 0.006496
+          "perda": 0.002799
         },
         {
           "epoca": 30,
-          "perda": 0.005906,
-          "acuracia_treino": 0.997371
+          "perda": 0.002408,
+          "acuracia_treino": 0.999067
         },
         {
           "epoca": 31,
-          "perda": 0.007596
+          "perda": 0.002558
         },
         {
           "epoca": 32,
-          "perda": 0.00823
+          "perda": 0.002948
         },
         {
           "epoca": 33,
-          "perda": 0.008035
+          "perda": 0.002214
         },
         {
           "epoca": 34,
-          "perda": 0.005721
+          "perda": 0.002247
         },
         {
           "epoca": 35,
-          "perda": 0.00722
+          "perda": 0.003349
         },
         {
           "epoca": 36,
-          "perda": 0.00701
+          "perda": 0.003194
         },
         {
           "epoca": 37,
-          "perda": 0.007021
+          "perda": 0.002616
         },
         {
           "epoca": 38,
-          "perda": 0.006914
+          "perda": 0.002009
         },
         {
           "epoca": 39,
-          "perda": 0.005303
+          "perda": 0.003234
         },
         {
           "epoca": 40,
-          "perda": 0.008215,
-          "acuracia_treino": 0.999416
+          "perda": 0.002315,
+          "acuracia_treino": 0.999242
         },
         {
           "epoca": 41,
-          "perda": 0.00621
+          "perda": 0.001689
         },
         {
           "epoca": 42,
-          "perda": 0.006162
+          "perda": 0.027458
         },
         {
           "epoca": 43,
-          "perda": 0.005642
+          "perda": 0.012338
         },
         {
           "epoca": 44,
-          "perda": 0.00498
+          "perda": 0.00336
         },
         {
           "epoca": 45,
-          "perda": 0.004312
+          "perda": 0.003582
         },
         {
           "epoca": 46,
-          "perda": 0.005127
+          "perda": 0.003531
         },
         {
           "epoca": 47,
-          "perda": 0.007462
+          "perda": 0.002675
         },
         {
           "epoca": 48,
-          "perda": 0.005805
+          "perda": 0.002847
         },
         {
           "epoca": 49,
-          "perda": 0.005561
+          "perda": 0.002107
         },
         {
           "epoca": 50,
-          "perda": 0.004515,
-          "acuracia_treino": 0.997371
+          "perda": 0.002172,
+          "acuracia_treino": 0.998162
         }
       ]
     }
   },
   "metricas_teste": {
     "MediaPipe (.task)": {
-      "acuracia": 0.8907,
-      "precisao": 0.9315,
-      "recall": 0.8907,
-      "f1": 0.8628
+      "acuracia": 0.9922,
+      "precisao": 0.9925,
+      "recall": 0.9922,
+      "f1": 0.9922
     },
     "Random Forest": {
-      "acuracia": 0.9938,
-      "precisao": 0.994,
-      "recall": 0.9938,
-      "f1": 0.9938
+      "acuracia": 0.9973,
+      "precisao": 0.9973,
+      "recall": 0.9973,
+      "f1": 0.9973
     },
     "Support Vector Machine": {
-      "acuracia": 0.9824,
-      "precisao": 0.9856,
-      "recall": 0.9824,
-      "f1": 0.9826
+      "acuracia": 0.9911,
+      "precisao": 0.9918,
+      "recall": 0.9911,
+      "f1": 0.9911
     },
     "Spiking Neural Network": {
-      "acuracia": 0.9903,
-      "precisao": 0.9913,
-      "recall": 0.9903,
-      "f1": 0.9902
+      "acuracia": 0.9887,
+      "precisao": 0.9893,
+      "recall": 0.9887,
+      "f1": 0.9887
     }
   },
   "acuracia_teste_espelhado": {
-    "Spiking Neural Network": 0.9903,
-    "Random Forest": 0.9938,
-    "SVM": 0.9824
+    "Spiking Neural Network": 0.9887,
+    "Random Forest": 0.9973,
+    "SVM": 0.9911
   },
   "versoes": {
-    "python": "3.13.16",
-    "numpy": "2.5.3",
+    "python": "3.12.13",
+    "numpy": "2.5.5",
     "sklearn": "1.9.1",
-    "torch": "2.14.1+cu130",
+    "torch": "2.15.0+cu132",
     "snntorch": "1.0.0",
-    "mediapipe": "1.1.0"
+    "mediapipe": "1.2.3"
   }
 }

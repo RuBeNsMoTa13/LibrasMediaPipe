@@ -7,6 +7,8 @@ Status: Novo
 
 # Metodologia da avaliação e limitações dos resultados
 
+> **Atualização de 27/11/2026:** os números deste documento são da auditoria de outubro, feita na amostra de 4.621 fotos que ficava em `data/libras`. Em novembro, os quatro modelos foram treinados de novo com a base completa do Kaggle (46.262 fotos), e o `.task` foi retreinado com o Model Maker (100 épocas, lotes de 32, só com a pasta de treino). Os resultados atuais estão na seção de resultados do [README principal](../../README.md). As conclusões sobre as limitações continuam valendo: na validação por grupo com a base completa, o acerto do SVM caiu para 82% em 1 dos 6 grupos e para 95,5% em outro.
+
 Este documento explica, para quem não é da área e para a banca do TCC, de onde vêm os dados, como eles chegam a cada modelo e o que as métricas podem e não podem afirmar. Ele resume uma auditoria técnica do pipeline feita em outubro de 2026, com números medidos sobre as fotos de `data/libras`.
 
 ## Resumo
