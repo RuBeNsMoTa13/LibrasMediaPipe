@@ -7,6 +7,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from pathlib import Path
 import threading
+import time
 import numpy as np
 
 # --- CONFIGURAÇÕES ---
@@ -58,6 +59,11 @@ last_legend_update_time = 0.0  # instante do ultimo sinal consolidado
 LEGEND_CLEAR_SECONDS = 5  # limpa a legenda apos esse tempo sem novos sinais no modo automatico
 LETTER_DELAY_SECONDS = 0.7  # intervalo minimo entre letras
 last_letter_commit_time = 0.0  # instante da ultima letra adicionada
+HOLD_SECONDS = 1.0  # a letra precisa ficar estável por esse tempo para entrar na legenda
+hold_candidate = None  # letra sendo confirmada (barra de progresso)
+hold_start = 0.0  # instante em que a letra candidata apareceu
+hold_done_letter = None  # última letra confirmada, mostrada em verde por um instante
+hold_done_until = 0.0
 CONFIDENCE_THRESHOLD = 0.50  # limiar padrão ajustado para 50% (permite letras como U, V, etc.)
 
 # Modo de voz: False = manual (apenas ao teclar Enter), True = automático (ao pausar por 5s)
@@ -253,6 +259,41 @@ print("  [Espaço]   : Adicionar espaço")
 print("  [Q]        : Sair")
 
 
+def draw_hold_progress(frame, hand_landmarks, progress, now):
+    """Desenha acima da mão um painel com a letra sendo confirmada e uma barra que enche."""
+    done = hold_done_letter is not None and now < hold_done_until
+    if hold_candidate is None and not done:
+        return
+    h, w = frame.shape[:2]
+    xs = [p.x * w for p in hand_landmarks]
+    ys = [p.y * h for p in hand_landmarks]
+    bw = int(max(230, max(xs) - min(xs)))
+    bh = 14
+    bx = int(min(w - bw - 10, max(10, (min(xs) + max(xs)) / 2 - bw / 2)))
+    by = int(max(76 + 52, min(ys) - 30))
+    letter = (hold_done_letter if done else hold_candidate).upper()
+    p = 1.0 if done else progress
+    color = COLOR_EMERALD if done else COLOR_CYAN
+    texto = f"{letter} adicionada" if done else f"Reconhecendo {letter}..."
+
+    # Painel escuro semitransparente para o texto aparecer sobre qualquer fundo
+    px1, py1, px2, py2 = bx - 12, by - 40, bx + bw + 12, by + bh + 12
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (px1, py1), (px2, py2), (20, 18, 15), -1)
+    cv2.addWeighted(overlay, 0.80, frame, 0.20, 0, frame)
+    # Barra: fundo, parte preenchida e contorno
+    cv2.rectangle(frame, (bx, by), (bx + bw, by + bh), (55, 48, 42), -1)
+    cv2.rectangle(frame, (bx, by), (bx + max(bh, int(bw * p)), by + bh), color, -1)
+    cv2.rectangle(frame, (bx, by), (bx + bw, by + bh), color, 2)
+    if USE_PIL_FONT:
+        y1, y2 = max(0, by - 36), by - 4
+        pil = Image.fromarray(frame[y1:y2, bx:px2])
+        ImageDraw.Draw(pil).text((0, 0), texto, font=font_med_bold, fill=color)
+        frame[y1:y2, bx:px2] = np.asarray(pil)
+    else:
+        cv2.putText(frame, texto, (bx, by - 12), cv2.FONT_HERSHEY_DUPLEX, 0.65, color, 1, cv2.LINE_AA)
+
+
 def update_recognized_text(token, current_text, previous_seen, now_seconds, previous_commit_time):
     """Atualiza o texto acumulado quando um novo token estável aparece."""
     if token is None:
@@ -337,6 +378,8 @@ while cap.isOpened():
                 cv2.line(frame, (x1, y1), (x2, y2), (255, 0, 0), 3)
 
     # Variáveis de estado do frame
+    hold_now = time.monotonic()
+    hold_progress = 0.0
     gesture_detected = False
     label = ""
     score = 0.0
@@ -362,20 +405,41 @@ while cap.isOpened():
         if label and label.lower() != "none":
             gesture_detected = True
 
-            # Atualiza contexto apenas se confiança suficiente
+            # Atualiza contexto apenas se confiança suficiente e se a letra ficar
+            # estável por HOLD_SECONDS (a barra de progresso mostra quanto falta)
             if score >= CONFIDENCE_THRESHOLD:
-                recognized_text, last_seen_token, last_letter_commit_time, text_updated = update_recognized_text(
-                    label,
-                    recognized_text,
-                    last_seen_token,
-                    now_seconds,
-                    last_letter_commit_time,
-                )
-                if text_updated:
-                    last_legend_update_time = now_seconds
+                token = label.strip().lower()
+                if token == last_seen_token:
+                    hold_candidate = None  # já entrou: troque de letra ou abaixe a mão para repetir
+                else:
+                    if token != hold_candidate:
+                        hold_candidate, hold_start = token, hold_now
+                    hold_progress = min(1.0, (hold_now - hold_start) / HOLD_SECONDS)
+                    if hold_progress >= 1.0:
+                        recognized_text, last_seen_token, last_letter_commit_time, text_updated = update_recognized_text(
+                            label,
+                            recognized_text,
+                            last_seen_token,
+                            now_seconds,
+                            last_letter_commit_time,
+                        )
+                        if text_updated:
+                            last_legend_update_time = now_seconds
+                        if last_seen_token == token:
+                            hold_done_letter, hold_done_until = token, hold_now + 0.4
+                            hold_candidate = None
+            else:
+                hold_candidate = None
         else:
             # Gesto classificado como "None" (posição neutra da mão)
             last_seen_token = None
+            hold_candidate = None
+    else:
+        hold_candidate = None
+
+    # Barra de progresso acima da mão enquanto a letra está sendo confirmada
+    if result.hand_landmarks and not show_help:
+        draw_hold_progress(frame, result.hand_landmarks[0], hold_progress, hold_now)
 
     # Fala e limpeza automática por inatividade (apenas quando o modo automático estiver ativo)
     if AUTO_SPEAK and recognized_text and last_legend_update_time and (now_seconds - last_legend_update_time) >= LEGEND_CLEAR_SECONDS:

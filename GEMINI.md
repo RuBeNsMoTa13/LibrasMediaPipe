@@ -10,7 +10,7 @@ Este documento consolida a arquitetura, as convenções e os modos de operação
 * **Letras:** 21 letras, as que existem no dataset: A B C D E F G I L M N O P Q R S T U V W Y.
 * **Entrada de dados:** imagens da webcam (nas aplicações) e fotos 64x64 do dataset williansoliveira/libras do Kaggle (46.262 fotos, baixadas pelo `kagglehub`; não ficam no repositório) no treino e na avaliação.
 * **Extração de atributos:** o MediaPipe encontra a mão e devolve 21 pontos (landmarks) na imagem, os mesmos 21 pontos em 3D, em metros, e se a mão é direita ou esquerda. A rede `gesture_embedder`, que vem dentro do `.task`, transforma essas informações no resumo de 128 números (`src/classificadores/resumo.py`).
-* **Saída:** a letra com a sua confiança, um limiar de confiança ajustável (padrão de 50%), um buffer que junta as letras em palavras (soletração, com intervalo mínimo de 0,7 s entre letras) e a leitura do texto em voz alta.
+* **Saída:** a letra com a sua confiança, um limiar de confiança ajustável (padrão de 50%), um buffer que junta as letras em palavras (soletração: a letra precisa ficar 1 s estável, com barra de progresso, e há intervalo mínimo de 0,7 s entre letras) e a leitura do texto em voz alta.
 
 Caminho de cada imagem da câmera:
 
@@ -56,7 +56,7 @@ O projeto possui dois ambientes de execução, com propósitos diferentes:
 2. **Ambiente Web (navegador - `web/index.html`):**
    * Um único arquivo HTML com JavaScript, sem servidor de aplicação. Ele usa a biblioteca JavaScript do MediaPipe (`@mediapipe/tasks-vision`), que roda no próprio navegador com WebAssembly. O vídeo nunca sai do computador de quem acessa.
    * Usa somente o `.task`. Random Forest, SVM e SNN existem apenas na versão em Python.
-   * Tem os mesmos recursos de uso da versão local: limiar ajustável (50% por padrão), 0,7 s entre letras e voz em português pela Web Speech API do navegador.
+   * Tem os mesmos recursos de uso da versão local: limiar ajustável (50% por padrão), 1 s de letra estável com barra de progresso, 0,7 s entre letras e voz em português pela Web Speech API do navegador.
    * Está publicado como Space estático do Hugging Face: <https://rubensmota13-librasmediapipe.static.hf.space>. O cabeçalho YAML do `README.md` configura esse Space (`sdk: static`, `app_file: web/index.html`) e não deve ser alterado.
    * No GitHub, o `.task` fica no Git LFS (aparece como um ponteiro pequeno). O Space precisa receber o arquivo real.
    * Histórico: a versão web anterior era uma interface Gradio (primeiro com o SDK Gradio do Hugging Face e, a partir de 26/05/2026, num container Docker), que mandava cada frame para o servidor e por isso atrasava. Ela foi removida do repositório.
