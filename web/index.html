@@ -217,29 +217,21 @@ function drawHand(lm) {
   ctx.stroke();
 }
 
-// Barra de progresso acima da mão: enche enquanto a mesma letra continua estável
-function drawProgress(lm, progress, now) {
+// Barra de progresso ao lado do "Sinal", na barra de cima: enche enquanto a mesma letra continua estável
+function drawProgress(x, progress, now) {
   const done = doneLetter && now < doneUntil;
   if (!cand && !done) return;
-  const xs = lm.map((p) => p.x * W), ys = lm.map((p) => p.y * H);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs);
-  const bw = Math.max(230, x1 - x0), bh = 14;
-  const bx = Math.min(W - bw - 10, Math.max(10, (x0 + x1) / 2 - bw / 2));
-  const by = Math.max(76 + 52, Math.min(...ys) - 30);
-  const letter = (done ? doneLetter : cand).toUpperCase();
+  const bw = 180, bh = 14, by = 16;
   const p = done ? 1 : progress, color = done ? C.emerald : C.cyan;
-  ctx.fillStyle = "rgba(15,18,20,0.80)"; // painel escuro para o texto aparecer sobre qualquer fundo
-  ctx.beginPath(); ctx.roundRect(bx - 12, by - 40, bw + 24, bh + 52, 10); ctx.fill();
-  txt(done ? `${letter} adicionada` : `Reconhecendo ${letter}...`, bx, by - 32, F.medBold, color);
   ctx.fillStyle = "rgb(42,48,55)";
-  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, bh / 2); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(x, by, bw, bh, bh / 2); ctx.fill();
   ctx.fillStyle = color;
-  ctx.beginPath(); ctx.roundRect(bx, by, Math.max(bh, bw * p), bh, bh / 2); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(x, by, Math.max(bh, bw * p), bh, bh / 2); ctx.fill();
   ctx.strokeStyle = color; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, bh / 2); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(x, by, bw, bh, bh / 2); ctx.stroke();
 }
 
-function drawTopBar(gesture) {
+function drawTopBar(gesture, progress, now) {
   const barH = 76;
   ctx.fillStyle = C.bar; ctx.fillRect(0, 0, W, barH);
   ctx.fillStyle = C.barLine; ctx.fillRect(0, barH, W, 1);
@@ -251,6 +243,7 @@ function drawTopBar(gesture) {
     else { label = `Sinal: ${gesture.name} (${pct}%) [< ${thr}%]`; color = C.amber; }
   }
   txt(label, 20, 10, F.medBold, color);
+  if (!showHelp) { ctx.font = F.medBold; drawProgress(20 + ctx.measureText(label).width + 16, progress, now); }
   txt(`Limiar: ${thr}% [+/-]`, W - 20, 10, F.medBold, C.cyan, "right");
   txt(showHelp ? "MODO AJUDA ABERTO" : "Reconhecimento ativo  |  Modelo: MediaPipe .task", 20, 44, F.small, C.muted);
   txt("[H] Manual de Atalhos  |  [C] Limpar  |  [Q] Sair", W - 20, 44, F.small, C.white, "right");
@@ -329,12 +322,11 @@ function loop() {
     } else {
       cand = null;
     }
-    if (hands.length && !showHelp) drawProgress(hands[0], progress, now);
 
     // Modo automático: fala e limpa a legenda após 5 s sem novos sinais (como no desktop)
     if (autoSpeak && text && lastUpdate && now - lastUpdate >= LEGEND_CLEAR_MS) speakAndClear();
 
-    drawTopBar(gesture);
+    drawTopBar(gesture, progress, now);
     drawBottomBar();
     if (showHelp) drawHelpModal();
     frames++;

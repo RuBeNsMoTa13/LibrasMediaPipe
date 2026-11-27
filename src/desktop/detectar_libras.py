@@ -259,39 +259,17 @@ print("  [Espaço]   : Adicionar espaço")
 print("  [Q]        : Sair")
 
 
-def draw_hold_progress(frame, hand_landmarks, progress, now):
-    """Desenha acima da mão um painel com a letra sendo confirmada e uma barra que enche."""
+def draw_hold_progress(frame, x, progress, now):
+    """Desenha, ao lado do "Sinal" na barra de cima, uma barra que enche enquanto a letra é confirmada."""
     done = hold_done_letter is not None and now < hold_done_until
     if hold_candidate is None and not done:
         return
-    h, w = frame.shape[:2]
-    xs = [p.x * w for p in hand_landmarks]
-    ys = [p.y * h for p in hand_landmarks]
-    bw = int(max(230, max(xs) - min(xs)))
-    bh = 14
-    bx = int(min(w - bw - 10, max(10, (min(xs) + max(xs)) / 2 - bw / 2)))
-    by = int(max(76 + 52, min(ys) - 30))
-    letter = (hold_done_letter if done else hold_candidate).upper()
+    bw, bh, by = 180, 14, 16
     p = 1.0 if done else progress
     color = COLOR_EMERALD if done else COLOR_CYAN
-    texto = f"{letter} adicionada" if done else f"Reconhecendo {letter}..."
-
-    # Painel escuro semitransparente para o texto aparecer sobre qualquer fundo
-    px1, py1, px2, py2 = bx - 12, by - 40, bx + bw + 12, by + bh + 12
-    overlay = frame.copy()
-    cv2.rectangle(overlay, (px1, py1), (px2, py2), (20, 18, 15), -1)
-    cv2.addWeighted(overlay, 0.80, frame, 0.20, 0, frame)
-    # Barra: fundo, parte preenchida e contorno
-    cv2.rectangle(frame, (bx, by), (bx + bw, by + bh), (55, 48, 42), -1)
-    cv2.rectangle(frame, (bx, by), (bx + max(bh, int(bw * p)), by + bh), color, -1)
-    cv2.rectangle(frame, (bx, by), (bx + bw, by + bh), color, 2)
-    if USE_PIL_FONT:
-        y1, y2 = max(0, by - 36), by - 4
-        pil = Image.fromarray(frame[y1:y2, bx:px2])
-        ImageDraw.Draw(pil).text((0, 0), texto, font=font_med_bold, fill=color)
-        frame[y1:y2, bx:px2] = np.asarray(pil)
-    else:
-        cv2.putText(frame, texto, (bx, by - 12), cv2.FONT_HERSHEY_DUPLEX, 0.65, color, 1, cv2.LINE_AA)
+    cv2.rectangle(frame, (x, by), (x + bw, by + bh), (55, 48, 42), -1)
+    cv2.rectangle(frame, (x, by), (x + max(bh, int(bw * p)), by + bh), color, -1)
+    cv2.rectangle(frame, (x, by), (x + bw, by + bh), color, 2)
 
 
 def update_recognized_text(token, current_text, previous_seen, now_seconds, previous_commit_time):
@@ -437,10 +415,6 @@ while cap.isOpened():
     else:
         hold_candidate = None
 
-    # Barra de progresso acima da mão enquanto a letra está sendo confirmada
-    if result.hand_landmarks and not show_help:
-        draw_hold_progress(frame, result.hand_landmarks[0], hold_progress, hold_now)
-
     # Fala e limpeza automática por inatividade (apenas quando o modo automático estiver ativo)
     if AUTO_SPEAK and recognized_text and last_legend_update_time and (now_seconds - last_legend_update_time) >= LEGEND_CLEAR_SECONDS:
         if USE_TTS and recognized_text and recognized_text != last_spoken_text:
@@ -480,6 +454,8 @@ while cap.isOpened():
         draw_top = ImageDraw.Draw(pil_top)
 
         draw_top.text((20, 10), current_label, font=font_med_bold, fill=label_color)
+        bbox_lb = font_med_bold.getbbox(current_label)
+        progress_x = 20 + (bbox_lb[2] - bbox_lb[0]) + 16
 
         bbox_th = font_med_bold.getbbox(thresh_text)
         tw_th = bbox_th[2] - bbox_th[0]
@@ -494,11 +470,17 @@ while cap.isOpened():
         frame[0:top_bar_h, 0:w] = np.asarray(pil_top)
     else:
         cv2.putText(frame, current_label, (20, 30), cv2.FONT_HERSHEY_DUPLEX, 0.75, label_color, 1, cv2.LINE_AA)
+        (tw_lb, _), _ = cv2.getTextSize(current_label, cv2.FONT_HERSHEY_DUPLEX, 0.75, 1)
+        progress_x = 20 + tw_lb + 16
         (tw_thresh, _), _ = cv2.getTextSize(thresh_text, cv2.FONT_HERSHEY_DUPLEX, 0.65, 1)
         cv2.putText(frame, thresh_text, (w - tw_thresh - 20, 30), cv2.FONT_HERSHEY_DUPLEX, 0.65, COLOR_CYAN, 1, cv2.LINE_AA)
         cv2.putText(frame, sub_left, (20, 60), cv2.FONT_HERSHEY_DUPLEX, 0.50, COLOR_MUTED, 1, cv2.LINE_AA)
         (tw_sc, _), _ = cv2.getTextSize(top_shortcuts, cv2.FONT_HERSHEY_DUPLEX, 0.52, 1)
         cv2.putText(frame, top_shortcuts, (w - tw_sc - 20, 60), cv2.FONT_HERSHEY_DUPLEX, 0.52, COLOR_WHITE, 1, cv2.LINE_AA)
+
+    # Barra de progresso ao lado do "Sinal" enquanto a letra está sendo confirmada
+    if not show_help:
+        draw_hold_progress(frame, progress_x, hold_progress, hold_now)
 
     # --- 2. BARRA INFERIOR UNIFICADA (Voz e Legenda Acumulada) ---
     bottom_bar_h = 86
