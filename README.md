@@ -62,13 +62,13 @@ O projeto tem duas versões do aplicativo, com os mesmos recursos de soletraçã
 1. **Aplicativo desktop (`src/desktop/detectar_libras.py`):**
    * Abre a webcam do computador com o OpenCV e mostra a letra reconhecida sobre o vídeo.
    * **Troca de classificador ao vivo:** a tecla `M` alterna entre o MediaPipe `.task`, a SNN, o Random Forest e o SVM, e a barra superior da janela mostra qual classificador está em uso. Também é possível escolher na hora de abrir, com `--modelo task|snn|rf|svm`.
-   * **Soletração:** as letras reconhecidas são juntadas numa palavra. A mesma letra não é repetida enquanto a mão continua fazendo o mesmo sinal; para repetir uma letra, tire a mão da câmera e mostre a letra de novo. Entre uma letra registrada e a seguinte, é preciso passar pelo menos 0,7 s. Há teclas para inserir espaço e apagar.
+   * **Soletração:** as letras reconhecidas são juntadas numa palavra. A mesma letra não é repetida enquanto a mão continua fazendo o mesmo sinal; para repetir uma letra, tire a mão da câmera e mostre a letra de novo. Entre uma letra registrada e a seguinte, é preciso passar pelo menos 0,7 s. Uma letra só entra na legenda depois de ficar 1 s seguida acima do limiar; enquanto isso, uma barra ao lado do "Sinal", na barra de cima, vai enchendo. Há teclas para inserir espaço e apagar.
    * **Voz:** a palavra soletrada é falada pelo `pyttsx3`, que usa a voz instalada no sistema operacional. No modo manual a fala acontece ao teclar `Enter`; no modo automático (tecla `V`), depois de 5 s sem letras novas.
    * **Limiar de confiança:** o programa só aceita uma letra quando o classificador tem pelo menos 50% de certeza. Esse valor sobe e desce de 5 em 5% com as teclas `+` e `-`.
 
 2. **Aplicativo web no navegador (`web/index.html`):**
    * Roda o mesmo `gesture_recognizer.task` direto no navegador, com a biblioteca `@mediapipe/tasks-vision` (WebAssembly e WebGL). Não existe servidor que faça o reconhecimento: o vídeo nunca sai do computador do usuário.
-   * Tem a mesma soletração (0,7 s entre letras), o mesmo limiar ajustável (padrão 50%) e voz em português pela Web Speech API do navegador. Usa apenas o classificador `.task`.
+   * Tem a mesma soletração (1 s com a letra estável, com barra de progresso, e 0,7 s entre letras), o mesmo limiar ajustável (padrão 50%) e voz em português pela Web Speech API do navegador. Usa apenas o classificador `.task`.
    * Está publicado como Space estático no Hugging Face: <https://rubensmota13-librasmediapipe.static.hf.space>.
 
 > A versão web anterior, feita em Gradio (publicada primeiro com o SDK Gradio do Hugging Face e, a partir de 26/05/2026, num contêiner Docker), enviava cada quadro do vídeo para um servidor e por isso tinha cerca de 1,5 s de atraso; ela foi removida e substituída pela versão no navegador, explicada em [docs/ambientes/versao-web-navegador.md](docs/ambientes/versao-web-navegador.md).
@@ -130,7 +130,7 @@ RF, SVM e SNN são treinados por [`src/treino/treinar_modelos.py`](src/treino/tr
 
 ### 4. Depois da classificação
 * **Limiar de confiança:** letras com certeza abaixo do limiar (padrão 50%) são ignoradas.
-* **Soletração:** a mesma letra não entra duas vezes seguidas enquanto a mão continua no mesmo sinal; para repetir, é preciso tirar a mão da câmera. Entre uma letra registrada e a seguinte, é preciso passar pelo menos 0,7 s.
+* **Soletração:** a mesma letra não entra duas vezes seguidas enquanto a mão continua no mesmo sinal; para repetir, é preciso tirar a mão da câmera. Entre uma letra registrada e a seguinte, é preciso passar pelo menos 0,7 s. Uma letra só entra na legenda depois de ficar 1 s seguida acima do limiar; enquanto isso, uma barra ao lado do "Sinal", na barra de cima, vai enchendo.
 * **Voz:** a palavra é falada ao teclar `Enter` ou, no modo automático, depois de 5 s sem letras novas.
 
 ---

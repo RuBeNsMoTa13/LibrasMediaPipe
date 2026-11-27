@@ -7,6 +7,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from pathlib import Path
 import threading
+import time
 import numpy as np
 
 # --- CONFIGURAÇÕES ---
@@ -58,6 +59,11 @@ last_legend_update_time = 0.0  # instante do ultimo sinal consolidado
 LEGEND_CLEAR_SECONDS = 5  # limpa a legenda apos esse tempo sem novos sinais no modo automatico
 LETTER_DELAY_SECONDS = 0.7  # intervalo minimo entre letras
 last_letter_commit_time = 0.0  # instante da ultima letra adicionada
+HOLD_SECONDS = 1.0  # a letra precisa ficar estável por esse tempo para entrar na legenda
+hold_candidate = None  # letra sendo confirmada (barra de progresso)
+hold_start = 0.0  # instante em que a letra candidata apareceu
+hold_done_letter = None  # última letra confirmada, mostrada em verde por um instante
+hold_done_until = 0.0
 CONFIDENCE_THRESHOLD = 0.50  # limiar padrão ajustado para 50% (permite letras como U, V, etc.)
 
 # Modo de voz: False = manual (apenas ao teclar Enter), True = automático (ao pausar por 5s)
@@ -253,6 +259,19 @@ print("  [Espaço]   : Adicionar espaço")
 print("  [Q]        : Sair")
 
 
+def draw_hold_progress(frame, x, progress, now):
+    """Desenha, ao lado do "Sinal" na barra de cima, uma barra que enche enquanto a letra é confirmada."""
+    done = hold_done_letter is not None and now < hold_done_until
+    if hold_candidate is None and not done:
+        return
+    bw, bh, by = 180, 14, 16
+    p = 1.0 if done else progress
+    color = COLOR_EMERALD if done else COLOR_CYAN
+    cv2.rectangle(frame, (x, by), (x + bw, by + bh), (55, 48, 42), -1)
+    cv2.rectangle(frame, (x, by), (x + max(bh, int(bw * p)), by + bh), color, -1)
+    cv2.rectangle(frame, (x, by), (x + bw, by + bh), color, 2)
+
+
 def update_recognized_text(token, current_text, previous_seen, now_seconds, previous_commit_time):
     """Atualiza o texto acumulado quando um novo token estável aparece."""
     if token is None:
@@ -337,6 +356,8 @@ while cap.isOpened():
                 cv2.line(frame, (x1, y1), (x2, y2), (255, 0, 0), 3)
 
     # Variáveis de estado do frame
+    hold_now = time.monotonic()
+    hold_progress = 0.0
     gesture_detected = False
     label = ""
     score = 0.0
@@ -362,20 +383,37 @@ while cap.isOpened():
         if label and label.lower() != "none":
             gesture_detected = True
 
-            # Atualiza contexto apenas se confiança suficiente
+            # Atualiza contexto apenas se confiança suficiente e se a letra ficar
+            # estável por HOLD_SECONDS (a barra de progresso mostra quanto falta)
             if score >= CONFIDENCE_THRESHOLD:
-                recognized_text, last_seen_token, last_letter_commit_time, text_updated = update_recognized_text(
-                    label,
-                    recognized_text,
-                    last_seen_token,
-                    now_seconds,
-                    last_letter_commit_time,
-                )
-                if text_updated:
-                    last_legend_update_time = now_seconds
+                token = label.strip().lower()
+                if token == last_seen_token:
+                    hold_candidate = None  # já entrou: troque de letra ou abaixe a mão para repetir
+                else:
+                    if token != hold_candidate:
+                        hold_candidate, hold_start = token, hold_now
+                    hold_progress = min(1.0, (hold_now - hold_start) / HOLD_SECONDS)
+                    if hold_progress >= 1.0:
+                        recognized_text, last_seen_token, last_letter_commit_time, text_updated = update_recognized_text(
+                            label,
+                            recognized_text,
+                            last_seen_token,
+                            now_seconds,
+                            last_letter_commit_time,
+                        )
+                        if text_updated:
+                            last_legend_update_time = now_seconds
+                        if last_seen_token == token:
+                            hold_done_letter, hold_done_until = token, hold_now + 0.4
+                            hold_candidate = None
+            else:
+                hold_candidate = None
         else:
             # Gesto classificado como "None" (posição neutra da mão)
             last_seen_token = None
+            hold_candidate = None
+    else:
+        hold_candidate = None
 
     # Fala e limpeza automática por inatividade (apenas quando o modo automático estiver ativo)
     if AUTO_SPEAK and recognized_text and last_legend_update_time and (now_seconds - last_legend_update_time) >= LEGEND_CLEAR_SECONDS:
@@ -416,6 +454,8 @@ while cap.isOpened():
         draw_top = ImageDraw.Draw(pil_top)
 
         draw_top.text((20, 10), current_label, font=font_med_bold, fill=label_color)
+        bbox_lb = font_med_bold.getbbox(current_label)
+        progress_x = 20 + (bbox_lb[2] - bbox_lb[0]) + 16
 
         bbox_th = font_med_bold.getbbox(thresh_text)
         tw_th = bbox_th[2] - bbox_th[0]
@@ -430,11 +470,17 @@ while cap.isOpened():
         frame[0:top_bar_h, 0:w] = np.asarray(pil_top)
     else:
         cv2.putText(frame, current_label, (20, 30), cv2.FONT_HERSHEY_DUPLEX, 0.75, label_color, 1, cv2.LINE_AA)
+        (tw_lb, _), _ = cv2.getTextSize(current_label, cv2.FONT_HERSHEY_DUPLEX, 0.75, 1)
+        progress_x = 20 + tw_lb + 16
         (tw_thresh, _), _ = cv2.getTextSize(thresh_text, cv2.FONT_HERSHEY_DUPLEX, 0.65, 1)
         cv2.putText(frame, thresh_text, (w - tw_thresh - 20, 30), cv2.FONT_HERSHEY_DUPLEX, 0.65, COLOR_CYAN, 1, cv2.LINE_AA)
         cv2.putText(frame, sub_left, (20, 60), cv2.FONT_HERSHEY_DUPLEX, 0.50, COLOR_MUTED, 1, cv2.LINE_AA)
         (tw_sc, _), _ = cv2.getTextSize(top_shortcuts, cv2.FONT_HERSHEY_DUPLEX, 0.52, 1)
         cv2.putText(frame, top_shortcuts, (w - tw_sc - 20, 60), cv2.FONT_HERSHEY_DUPLEX, 0.52, COLOR_WHITE, 1, cv2.LINE_AA)
+
+    # Barra de progresso ao lado do "Sinal" enquanto a letra está sendo confirmada
+    if not show_help:
+        draw_hold_progress(frame, progress_x, hold_progress, hold_now)
 
     # --- 2. BARRA INFERIOR UNIFICADA (Voz e Legenda Acumulada) ---
     bottom_bar_h = 86
