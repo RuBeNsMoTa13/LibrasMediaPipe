@@ -39,7 +39,7 @@ A nova versão é um único arquivo, `web/index.html`, em HTML e JavaScript puro
 * **O mesmo `gesture_recognizer.task`** treinado no MediaPipe Model Maker, sem conversão.
 * **APIs do navegador:** `getUserMedia` para a webcam, `canvas` para desenhar o vídeo e os pontos da mão, e Web Speech API para falar o texto em pt-BR.
 
-O laço principal usa `requestAnimationFrame`, a função do navegador que chama o código a cada atualização da tela, e só processa quando a câmera entrega um frame novo. Cada frame é espelhado no `canvas`, como o `cv2.flip` da versão desktop, e passado a `recognizeForVideo`. A interface mantém os recursos da versão local: limiar de confiança ajustável (50% por padrão), intervalo mínimo de 0,7 s entre letras para montar palavras, botões de espaço, apagar e limpar, e síntese de voz.
+O laço principal usa `requestAnimationFrame`, a função do navegador que chama o código a cada atualização da tela, e só processa quando a câmera entrega um frame novo. Cada frame é espelhado no `canvas`, como o `cv2.flip` da versão desktop, e passado a `recognizeForVideo`. Desde 27/11/2026 o HUD (as informações desenhadas sobre o vídeo) é igual ao da versão desktop: tela de 1280×720, barra superior com o sinal, a confiança, o limiar e o modelo, barra inferior com o modo de voz e a legenda, e o manual de atalhos aberto pela tecla H, com as mesmas cores, textos e posições de `src/desktop/detectar_libras.py`. A única diferença é que a web usa só o `.task`, então não tem a tecla M para trocar de modelo. A interface mantém os recursos da versão local: limiar de confiança ajustável (50% por padrão), intervalo mínimo de 0,7 s entre letras para montar palavras, botões de espaço, apagar e limpar, e síntese de voz.
 
 ```mermaid
 flowchart LR
