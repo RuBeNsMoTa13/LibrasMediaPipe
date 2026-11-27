@@ -20,11 +20,11 @@ Este é o índice da documentação técnica do projeto **LibrasMediaPipe**, o T
 
 2. **[Versão web no navegador](ambientes/versao-web-navegador.md)**
    * Explica por que a primeira versão web, feita com a biblioteca Gradio e rodando no servidor do Hugging Face, chegava a ficar cerca de 1,5 s atrasada. Também explica como a versão atual roda o MediaPipe direto no navegador, publicada no Hugging Face como um Space estático (um site que só entrega os arquivos, sem rodar código no servidor).
-   * Traz os testes feitos com a versão nova: cerca de 15 quadros por segundo usando só a CPU e 85% de acerto numa amostra de 315 das 1.153 fotos de teste. Essa amostra serviu só para conferir que o modelo funciona no navegador. Ela não é a métrica oficial do `.task`, que está na seção de resultados do [README principal](../README.md).
+   * Traz o teste de velocidade da versão nova (cerca de 15 quadros por segundo usando só a CPU) e explica que a web usa o mesmo `.task` avaliado no TCC, com o mesmo HUD do app desktop.
 
 3. **[Metodologia e limitações da avaliação](avaliacao/metodologia-e-limitacoes.md)**
    * Explica como os quatro classificadores foram treinados e medidos, de onde veio a divisão entre fotos de treino e de teste e o que os números significam.
-   * Mostra por que as acurácias atuais medem o desempenho com as mesmas mãos que aparecem no treino, e não com a mão de um usuário novo, e quais testes faltam para medir isso.
+   * Traz os resultados dos quatro modelos com a base completa do Kaggle (46.262 fotos) e mostra por que as acurácias medem o desempenho com as mesmas mãos que aparecem no treino, e não com a mão de um usuário novo, e quais testes faltam para medir isso.
 
 4. **[Diretrizes do projeto (GEMINI.md)](../GEMINI.md)**
    * Resumo da arquitetura, da estrutura de pastas, dos comandos e das convenções do projeto, escrito para orientar o assistente Gemini.

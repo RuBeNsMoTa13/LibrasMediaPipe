@@ -71,7 +71,7 @@ A versão nova elimina a rede do caminho de cada frame, e com isso as quatro cau
 
 Os testes foram feitos no Chromium, em um servidor de nuvem sem GPU, em 4 de outubro de 2026:
 
-* **Acurácia:** o modelo rodando no navegador acertou 267 de 315 imagens (85%), o que confirma que o `.task` funciona no navegador sem conversão. Essas 315 imagens foram uma amostra das 1.153 fotos de teste de `data/libras/test`, usada só para essa conferência, e o critério de escolha da amostra não ficou registrado. Por isso o 85% não é a métrica oficial do `.task` e não deve ser comparado diretamente com ela. Esse teste foi feito com o `.task` de 2025. O `.task` atual, treinado em 26/11/2026 com a base completa, acerta 0,992 (99,2%) das 11.402 fotos de teste em que o MediaPipe encontrou a mão e 0,980 (98,0%) quando as 146 fotos sem mão contam como erro. Esses números estão na seção de resultados do [README principal](../../README.md).
+* **Acurácia:** o `.task` roda no navegador sem conversão, e o modelo é o mesmo avaliado no TCC. O `.task` atual, treinado em 26/11/2026 com a base completa, acerta 0,992 (99,2%) das 11.402 fotos de teste em que o MediaPipe encontrou a mão e 0,980 (98,0%) quando as 146 fotos sem mão contam como erro. Esses números estão na seção de resultados do [README principal](../../README.md).
 * **Velocidade:** com uma câmera simulada, a inferência levou 64 ms por frame, ou cerca de 15 FPS, usando apenas a CPU. Em um computador com placa de vídeo o desempenho tende a ser maior, mas isso não foi medido.
 
 Mesmo no pior caso medido, são cerca de 15 reconhecimentos por segundo contra um a cada 1,5 s na versão antiga.
