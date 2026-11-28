@@ -61,8 +61,8 @@ O projeto tem duas versões do aplicativo, com os mesmos recursos de soletraçã
 
 1. **Aplicativo desktop (`src/desktop/detectar_libras.py`):**
    * Abre a webcam do computador com o OpenCV e mostra a letra reconhecida sobre o vídeo.
-   * **Troca de classificador ao vivo:** a tecla `M` alterna entre o MediaPipe `.task`, a SNN, o Random Forest e o SVM, e a barra superior da janela mostra qual classificador está em uso. Também é possível escolher na hora de abrir, com `--modelo task|snn|rf|svm`.
-   * **Soletração:** as letras reconhecidas são juntadas numa palavra. A mesma letra não é repetida enquanto a mão continua fazendo o mesmo sinal; para repetir uma letra, tire a mão da câmera e mostre a letra de novo. Entre uma letra registrada e a seguinte, é preciso passar pelo menos 0,7 s. Uma letra só entra na legenda depois de ficar 1 s seguida acima do limiar; enquanto isso, uma barra ao lado do "Sinal", na barra de cima, vai enchendo. Há teclas para inserir espaço e apagar.
+   * **Troca de classificador ao vivo:** a tecla `M` alterna entre o MediaPipe `.task`, a SNN, o Random Forest e o SVM, e o rodapé do vídeo mostra qual classificador está em uso. Também é possível escolher na hora de abrir, com `--modelo task|snn|rf|svm`.
+   * **Soletração:** as letras reconhecidas são juntadas numa palavra. A mesma letra não é repetida enquanto a mão continua fazendo o mesmo sinal; para repetir uma letra, tire a mão da câmera e mostre a letra de novo. Entre uma letra registrada e a seguinte, é preciso passar pelo menos 0,7 s. Uma letra só entra na legenda depois de ficar 1 s seguida acima do limiar; enquanto isso, a barra do cartão do sinal, no canto de cima, vai enchendo, e a letra aparece em azul no fim da frase. Há teclas e botões para inserir espaço e apagar.
    * **Voz:** a palavra soletrada é falada pelo `pyttsx3`, que usa a voz instalada no sistema operacional. No modo manual a fala acontece ao teclar `Enter`; no modo automático (tecla `V`), depois de 5 s sem letras novas.
    * **Limiar de confiança:** o programa só aceita uma letra quando o classificador tem pelo menos 50% de certeza. Esse valor sobe e desce de 5 em 5% com as teclas `+` e `-`.
 
@@ -130,7 +130,7 @@ RF, SVM e SNN são treinados por [`src/treino/treinar_modelos.py`](src/treino/tr
 
 ### 4. Depois da classificação
 * **Limiar de confiança:** letras com certeza abaixo do limiar (padrão 50%) são ignoradas.
-* **Soletração:** a mesma letra não entra duas vezes seguidas enquanto a mão continua no mesmo sinal; para repetir, é preciso tirar a mão da câmera. Entre uma letra registrada e a seguinte, é preciso passar pelo menos 0,7 s. Uma letra só entra na legenda depois de ficar 1 s seguida acima do limiar; enquanto isso, uma barra ao lado do "Sinal", na barra de cima, vai enchendo.
+* **Soletração:** a mesma letra não entra duas vezes seguidas enquanto a mão continua no mesmo sinal; para repetir, é preciso tirar a mão da câmera. Entre uma letra registrada e a seguinte, é preciso passar pelo menos 0,7 s. Uma letra só entra na legenda depois de ficar 1 s seguida acima do limiar; enquanto isso, a barra do cartão do sinal, no canto de cima, vai enchendo.
 * **Voz:** a palavra é falada ao teclar `Enter` ou, no modo automático, depois de 5 s sem letras novas.
 
 ---
@@ -244,14 +244,29 @@ As opções são `task`, `snn`, `rf` e `svm`. SNN, Random Forest e SVM usam os a
 | Tecla | O que faz |
 | :--- | :--- |
 | `M` | Troca o classificador (.task, SNN, RF, SVM) |
-| `Enter` | Fala a palavra acumulada e limpa o texto |
+| `Enter` | Fala a frase, guarda no histórico e limpa o texto |
 | `V` | Alterna a voz entre manual (`Enter`) e automática (após 5 s sem letras) |
 | `+` / `=` e `-` / `_` | Aumenta ou diminui o limiar de confiança em 5% |
 | `Espaço` | Insere um espaço entre palavras |
 | `D` / `Backspace` | Apaga o último caractere |
 | `C` | Limpa o texto acumulado |
-| `H` | Abre e fecha o manual de atalhos |
+| `Tab` ou `1` / `2` / `3` | Aceita a correção que o corretor automático sugeriu (`Tab` e `1` pegam a primeira) |
+| `A` | Liga ou desliga o corretor automático |
+| `T` | Mostra ou esconde o histórico de frases faladas |
+| `F` | Tela cheia |
+| `H` / `Esc` | Abre e fecha o manual de atalhos |
 | `q` (minúsculo) | Fecha o aplicativo (com Caps Lock ligado ou com Shift, a tecla não funciona) |
+
+**Interface (HUD).** A webcam ocupa a janela toda e os controles ficam pequenos e semitransparentes por cima, para não esconder a mão:
+* no canto de cima à esquerda, o cartão do sinal, com a letra, a confiança, o OK (ou "abaixo do limiar") e a barra de 1 s;
+* no canto de cima à direita, os botões do histórico, do manual de atalhos (`?`) e da tela cheia;
+* logo abaixo deles, o histórico das frases faladas, a mais nova em cima, cada uma com a hora e um botão de alto-falante para ouvir de novo; ele mostra 5 frases e rola com a roda do mouse;
+* embaixo, a frase sendo escrita, com os botões de espaço, apagar, limpar e Falar;
+* no rodapé, o modelo, o limiar (com os botões `−` e `+`), o modo de voz, o corretor e o FPS.
+
+**Corretor automático.** Quando uma palavra termina (espaço), o app procura a palavra do português mais parecida numa lista de 30 mil palavras (`web/palavras_pt.txt`, tirada do FrequencyWords, licença CC BY-SA 4.0). Se a palavra escrita não existe, aparecem até 3 sugestões acima da frase, por exemplo `csaa → casa`, e ela só é trocada se a pessoa escolher uma (`Tab` para a primeira, `1`, `2`, `3` ou clique). A palavra anterior também conta: uma lista de pares comuns em conversa (`web/pares_pt.txt`, como "tudo bem" e "bom dia") faz "tudo bmel" sugerir "bem" antes de "mel". `Esc` ou o X ignoram a sugestão, e a tecla `A` (ou a etiqueta do rodapé) desliga o corretor. A comparação ignora acentos (`nao` → `não`) e considera que H, J, K, X e Z não podem ser soletrados, por isso `oje` vira `hoje`. O código fica em `src/desktop/corretor.py` e é o mesmo na versão web.
+
+Todos os botões funcionam com o mouse. O desenho fica em `src/desktop/hud.py` e é o mesmo da versão web.
 
 ### 2. Aplicativo web no navegador
 Online, sem instalar nada: <https://rubensmota13-librasmediapipe.static.hf.space>
@@ -260,7 +275,7 @@ Para rodar no próprio computador, sirva a pasta raiz do repositório (o navegad
 ```powershell
 python -m http.server
 ```
-Depois abra [http://localhost:8000/web/](http://localhost:8000/web/). A página carrega o `models/gesture_recognizer.task` local, por isso o `git lfs pull` precisa ter sido feito. Os atalhos de teclado são os mesmos do desktop, exceto o `M` (no navegador só existe o `.task`) e o `q`, que no navegador só desliga a câmera.
+Depois abra [http://localhost:8000/web/](http://localhost:8000/web/). A página carrega o `models/gesture_recognizer.task` local, por isso o `git lfs pull` precisa ter sido feito. O HUD e os atalhos de teclado são os mesmos do desktop, exceto o `M` (no navegador só existe o `.task`) e o `q`, que no navegador só desliga a câmera.
 
 ### 3. Treino dos classificadores
 ```powershell
