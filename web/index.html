@@ -91,6 +91,8 @@ const SHORTCUTS = [
   ["Espaço", "Inserir espaço entre palavras"],
   ["D / Backspace", "Apagar a última letra"],
   ["C", "Limpar a frase"],
+  ["Tab", "Aceitar a correção sugerida"],
+  ["A", "Ligar ou desligar o corretor automático"],
   ["T", "Mostrar ou esconder o histórico"],
   ["F", "Tela cheia"],
   ["H / Esc", "Abrir ou fechar este manual"],
@@ -119,6 +121,73 @@ let cand = null, candStart = 0, doneLetter = null, doneUntil = 0; // letra sendo
 let lastVideoTime = -1, frames = 0, fpsT0 = performance.now(), inferMs = 0, fps = 0;
 let regions = [];                  // áreas clicáveis do último quadro: [nome, x1, y1, x2, y2]
 
+// ---------- Corretor automático (mesmo algoritmo de src/desktop/corretor.py) ----------
+// Ao terminar uma palavra (espaço), sugere a palavra do português mais parecida; Tab ou o botão aceita.
+let autocorrectOn = true;
+let suggestion = null;             // { start, word, fix } esperando Tab
+const WORDS = new Map();           // palavra sem acento -> [grafia certa, posição: menor = mais comum]
+const MISSING_LETTERS = new Set("hjkxz"); // letras com movimento, fora do alfabeto: faltar uma custa meia edição
+const normalize = (w) => w.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+fetch("palavras_pt.txt").then((r) => r.ok ? r.text() : Promise.reject(r.status)).then((t) => {
+  for (const line of t.split("\n")) {
+    const w = line.trim();
+    if (w && !w.startsWith("#") && !WORDS.has(normalize(w))) WORDS.set(normalize(w), [w, WORDS.size]);
+  }
+}).catch((e) => console.warn("Corretor sem lista de palavras:", e));
+
+function editDistance(a, b, limit) {
+  let prev2 = null, prev = [0];
+  for (const ch of b) prev.push(prev[prev.length - 1] + (MISSING_LETTERS.has(ch) ? 0.5 : 1));
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      const ins = MISSING_LETTERS.has(b[j - 1]) ? 0.5 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + ins, prev[j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) cur[j] = Math.min(cur[j], prev2[j - 2] + 1);
+      best = Math.min(best, cur[j]);
+    }
+    if (best > limit) return limit + 1;
+    prev2 = prev; prev = cur;
+  }
+  return prev[b.length];
+}
+
+function suggest(word) {
+  const key = normalize(word);
+  if (key.length < 2 || !WORDS.size) return null;
+  if (WORDS.has(key)) { const right = WORDS.get(key)[0]; return right !== word.toLowerCase() ? right : null; }
+  const limit = key.length <= 4 ? 1 : 2;
+  let best = null;
+  for (const [other, [right, rank]] of WORDS) {
+    if (key.length - other.length > limit || other.length - key.length > 2 * limit) continue;
+    const d = editDistance(key, other, limit);
+    if (d > limit) continue;
+    // menos edições primeiro; entre as parecidas, a mais comum, com preferência pelo mesmo tamanho
+    const score = d + 0.12 * Math.log10(rank + 1) + 0.1 * Math.abs(other.length - key.length);
+    if (!best || score < best[0]) best = [score, right];
+  }
+  return best ? best[1] : null;
+}
+
+function checkLastWord() {
+  const trimmed = text.trimEnd();
+  const word = trimmed.split(" ").pop();
+  if (!autocorrectOn || !word) return null;
+  const fix = suggest(word);
+  return fix ? { start: trimmed.length - word.length, word, fix } : null;
+}
+const suggestionValid = () => suggestion && text.slice(suggestion.start, suggestion.start + suggestion.word.length) === suggestion.word;
+
+function acceptSuggestion() {
+  if (suggestionValid()) {
+    const { start, word, fix } = suggestion;
+    text = text.slice(0, start) + fix + text.slice(start + word.length);
+  }
+  suggestion = null;
+}
+
 async function createRecognizer() {
   const fileset = await FilesetResolver.forVisionTasks(
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm");
@@ -145,7 +214,7 @@ function updateText(token, now) {
   if (!t || t === lastSeen) return;
   let changed = false;
   if (["space", "espaco", "espaço"].includes(t)) {
-    if (text && !text.endsWith(" ")) { text += " "; changed = true; }
+    if (text && !text.endsWith(" ")) { text += " "; changed = true; suggestion = checkLastWord(); }
   } else if (["del", "delete", "apagar", "backspace"].includes(t)) {
     changed = text.length > 0;
     text = text.slice(0, -1);
@@ -222,10 +291,13 @@ const ACTIONS = {
   "thr-": () => setThreshold(threshold - 0.05),
   clear: resetText,
   del: () => { if (text) { text = text.slice(0, -1); lastSeen = null; lastUpdate = performance.now(); } },
-  space: () => { if (text && !text.endsWith(" ")) { text += " "; lastUpdate = performance.now(); } },
+  space: () => { if (text && !text.endsWith(" ")) { text += " "; lastUpdate = performance.now(); suggestion = checkLastWord(); } },
   hist: () => { showHistory = !showHistory; histScroll = 0; },
   full: toggleFullscreen,
   model: () => {}, // na web só existe o .task
+  accept: acceptSuggestion,
+  dismiss: () => { suggestion = null; },
+  autocorrect: () => { autocorrectOn = !autocorrectOn; suggestion = null; },
 };
 
 // ---------- Desenho do HUD (mesmo desenho do desktop: src/desktop/hud.py) ----------
@@ -362,6 +434,32 @@ function drawComposer(progress) {
   icon("speaker", fx + 14, y1 + 16, 18, C.dark);
   txt("Falar", fx + 14 + 18 + 7, ym, 15, C.dark, true);
   regions.push(["speak", fx, y1 + 6, fx + falarW, y1 + 44]);
+
+  // Sugestão do corretor, logo acima da frase
+  if (suggestion) {
+    const { word, fix } = suggestion;
+    const labW = width("corretor", 12, true), typedW = width(word, 16), fixW = width(fix, 17, true);
+    const accW = width("Aceitar · Tab", 13, true) + 24;
+    const sw = 14 + labW + 12 + typedW + 10 + 16 + 10 + fixW + 14 + accW + 6 + 28 + 6;
+    const sx1 = Math.round((W - sw) / 2), sy1 = y1 - 8 - 40, sy2 = y1 - 8, sm = (sy1 + sy2) / 2;
+    rrect(sx1, sy1, sx1 + sw, sy2, 12, C.panel);
+    let x = sx1 + 14;
+    txt("corretor", x, sm, 12, C.muted, true); x += labW + 12;
+    txt(word, x, sm, 16, C.soft);
+    ctx.fillStyle = C.soft; ctx.fillRect(x, sm, typedW, 1);
+    x += typedW + 10;
+    ctx.strokeStyle = C.muted; ctx.lineWidth = 2; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(x, sm); ctx.lineTo(x + 16, sm); ctx.moveTo(x + 10, sm - 5); ctx.lineTo(x + 16, sm); ctx.lineTo(x + 10, sm + 5); ctx.stroke();
+    x += 16 + 10;
+    txt(fix, x, sm, 17, C.accent, true); x += fixW + 14;
+    rrect(x, sy1 + 6, x + accW, sy2 - 6, 8, C.accent);
+    txt("Aceitar · Tab", x + 12, sm, 13, C.dark, true);
+    regions.push(["accept", x, sy1 + 6, x + accW, sy2 - 6]);
+    const dx = x + accW + 6;
+    rrect(dx, sy1 + 6, dx + 28, sy2 - 6, 8, C.button);
+    icon("close", dx + 6, sy1 + 12, 16, C.text);
+    regions.push(["dismiss", dx, sy1 + 6, dx + 28, sy2 - 6]);
+  }
 }
 
 function drawFooter() {
@@ -380,6 +478,8 @@ function drawFooter() {
   chip("+", C.text, "thr+", true);
   if (autoSpeak) chip(`voz auto ${LEGEND_CLEAR_MS / 1000} s (V)`, C.accent, "voice");
   else chip("voz manual (V)", C.soft, "voice");
+  if (autocorrectOn) chip("corretor ligado (A)", C.accent, "autocorrect");
+  else chip("corretor desligado (A)", C.soft, "autocorrect");
   const stats = `${fps.toFixed(0)} FPS · ${inferMs.toFixed(0)} ms · ${delegate}`;
   const sw = width(stats, 13) + 20;
   rrect(W - M - sw, y1, W - M, y2, 7, C.panel);
@@ -471,6 +571,8 @@ function loop() {
     // Modo automático: fala e limpa a legenda após 5 s sem novos sinais (como no desktop)
     if (autoSpeak && text && lastUpdate && now - lastUpdate >= LEGEND_CLEAR_MS) speakAndClear();
 
+    if (!suggestionValid()) suggestion = null; // a palavra foi apagada ou a frase foi falada
+
     drawHud(gesture, progress, now);
     frames++;
   }
@@ -524,12 +626,12 @@ canvas.addEventListener("wheel", (e) => {
 
 // Mesmos atalhos de teclado do app desktop
 const KEYS = { enter: "speak", v: "voice", "+": "thr+", "=": "thr+", "-": "thr-", "_": "thr-",
-  c: "clear", d: "del", backspace: "del", " ": "space", t: "hist", f: "full" };
+  c: "clear", d: "del", backspace: "del", " ": "space", t: "hist", f: "full", tab: "accept", a: "autocorrect" };
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === "h") { toggleHelp(); return; }
-  if (k === "escape") { if (showHelp) toggleHelp(false); return; }
+  if (k === "escape") { if (showHelp) toggleHelp(false); else suggestion = null; return; }
   if (showHelp) return;
   if (e.target.tagName === "BUTTON" && (k === " " || k === "enter")) return; // deixa o botão Iniciar funcionar
   if (k === "q") { stopCamera(); return; }

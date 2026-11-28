@@ -126,7 +126,7 @@ O `landmarks.py` fazia a normalização no pulso: colocava o pulso na origem e d
 python src/desktop/detectar_libras.py
 python src/desktop/detectar_libras.py --modelo snn   # ou task, rf, svm
 ```
-* `q` (minúsculo) encerra, `H` abre a ajuda com todos os atalhos, `M` troca o classificador, `+` / `-` mudam o limiar de confiança, `T` mostra ou esconde o histórico de frases e `F` liga a tela cheia. Os botões desenhados no vídeo também funcionam com o mouse (o HUD fica em `src/desktop/hud.py`).
+* `q` (minúsculo) encerra, `H` abre a ajuda com todos os atalhos, `M` troca o classificador, `+` / `-` mudam o limiar de confiança, `T` mostra ou esconde o histórico de frases, `F` liga a tela cheia, `Tab` aceita a correção sugerida pelo corretor automático e `A` liga ou desliga o corretor. Os botões desenhados no vídeo também funcionam com o mouse (o HUD fica em `src/desktop/hud.py`).
 
 ### 4.2. Execução da Versão Web no Computador
 Na raiz do repositório:

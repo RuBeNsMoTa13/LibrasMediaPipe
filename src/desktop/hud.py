@@ -65,6 +65,8 @@ SHORTCUTS_DESKTOP = [
     ("Espaço", "Inserir espaço entre palavras"),
     ("D / Backspace", "Apagar a última letra"),
     ("C", "Limpar a frase"),
+    ("Tab", "Aceitar a correção sugerida"),
+    ("A", "Ligar ou desligar o corretor automático"),
     ("T", "Mostrar ou esconder o histórico"),
     ("F", "Tela cheia"),
     ("H / Esc", "Abrir ou fechar este manual"),
@@ -88,6 +90,8 @@ class HudState:
     auto_speak: bool = False
     auto_seconds: int = 5
     stats: str = ""             # "30 FPS · 12 ms"
+    autocorrect: bool = True    # corretor automático ligado (tecla A)
+    suggestion: tuple = None    # (palavra escrita, correção sugerida) esperando Tab ou o botão Aceitar
     show_help: bool = False
     shortcuts: list = field(default_factory=lambda: list(SHORTCUTS_DESKTOP))
 
@@ -316,6 +320,38 @@ def draw_hud(frame, st: HudState, accent=ACCENT):
     texts.add(fx + 14 + 18 + 7, ymid, "Falar", 15, DARK, True)
     regions.append(("speak", (fx, y1 + 6, fx + falar_w, y1 + 44)))
 
+    # --- Sugestão do corretor, logo acima da frase ---
+    if st.suggestion:
+        typed, fix = st.suggestion
+        lab_w = texts.width("corretor", 12, True)
+        typed_w = texts.width(typed, 16)
+        fix_w = texts.width(fix, 17, True)
+        acc_w = texts.width("Aceitar · Tab", 13, True) + 24
+        sw_total = 14 + lab_w + 12 + typed_w + 10 + 16 + 10 + fix_w + 14 + acc_w + 6 + 28 + 6
+        sx1 = int((W - sw_total) / 2)
+        sy1, sy2 = y1 - 8 - 40, y1 - 8
+        smid = (sy1 + sy2) / 2
+        rrect(overlay, sx1, sy1, sx1 + sw_total, sy2, 12, PANEL)
+        x = sx1 + 14
+        texts.add(x, smid, "corretor", 12, MUTED, True)
+        x += lab_w + 12
+        texts.add(x, smid, typed, 16, SOFT)
+        solids.append(lambda f, x=x: cv2.line(f, (int(x), int(smid)), (int(x + typed_w), int(smid)), SOFT, 1, cv2.LINE_AA))
+        x += typed_w + 10
+        solids.append(lambda f, x=x: cv2.arrowedLine(f, (int(x), int(smid)), (int(x + 16), int(smid)), MUTED, 2,
+                                                       cv2.LINE_AA, tipLength=0.4))
+        x += 16 + 10
+        texts.add(x, smid, fix, 17, accent, True)
+        x += fix_w + 14
+        ax = x
+        solids.append(lambda f: rrect(f, ax, sy1 + 6, ax + acc_w, sy2 - 6, 8, accent))
+        texts.add(ax + 12, smid, "Aceitar · Tab", 13, DARK, True)
+        regions.append(("accept", (ax, sy1 + 6, ax + acc_w, sy2 - 6)))
+        dx = ax + acc_w + 6
+        solids.append(lambda f: rrect(f, dx, sy1 + 6, dx + 28, sy2 - 6, 8, BUTTON))
+        solids.append(lambda f: draw_icon(f, "close", dx + 6, sy1 + 12, 16, TEXT))
+        regions.append(("dismiss", (dx, sy1 + 6, dx + 28, sy2 - 6)))
+
     # --- Rodapé: modelo, limiar, voz e desempenho ---
     fy1, fy2 = H - 10 - 24, H - 10
     fmid = (fy1 + fy2) / 2
@@ -338,6 +374,10 @@ def draw_hud(frame, st: HudState, accent=ACCENT):
         chip(f"voz auto {st.auto_seconds} s (V)", accent, "voice")
     else:
         chip("voz manual (V)", SOFT, "voice")
+    if st.autocorrect:
+        chip("corretor ligado (A)", accent, "autocorrect")
+    else:
+        chip("corretor desligado (A)", SOFT, "autocorrect")
     if st.stats:
         sw = texts.width(st.stats, 13) + 20
         rrect(overlay, W - MARGIN - sw, fy1, W - MARGIN, fy2, 7, PANEL)

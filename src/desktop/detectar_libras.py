@@ -99,6 +99,7 @@ def speak_async(text: str):
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hud import HudState, draw_hud, draw_hand, hit, SHORTCUTS_DESKTOP
+from corretor import Corretor
 
 # Nomes curtos dos modelos no rodapé do HUD
 MODEL_SHORT = {"task": ".task", "snn": "SNN", "rf": "RF", "svm": "SVM"}
@@ -117,6 +118,26 @@ history = []  # [(frase, "HH:MM")], a mais nova primeiro
 hud_regions = []  # áreas clicáveis do último quadro desenhado
 mouse_events = []  # cliques e rolagens do mouse esperando o próximo quadro
 is_fullscreen = False
+
+# Corretor automático: ao terminar uma palavra (espaço), sugere a grafia certa; Tab aceita
+corretor = Corretor()
+autocorrect_on = True
+suggestion = None  # (posição da palavra na frase, palavra escrita, correção) esperando Tab
+
+
+def check_last_word(text):
+    """Procura correção para a palavra que acabou de ser fechada com espaço."""
+    word = text.rstrip().split(" ")[-1]
+    if not autocorrect_on or not word:
+        return None
+    fix = corretor.suggest(word)
+    if fix is None:
+        return None
+    return (len(text.rstrip()) - len(word), word, fix)
+
+
+def suggestion_still_valid(text, sugg):
+    return sugg is not None and text[sugg[0]:sugg[0] + len(sugg[1])] == sugg[1]
 
 
 def on_mouse(event, x, y, flags, _param):
@@ -168,6 +189,8 @@ print("  [D/Backsp] : Apagar última letra")
 print("  [Espaço]   : Adicionar espaço")
 print("  [T]        : Mostrar / esconder o histórico de frases")
 print("  [F]        : Tela cheia")
+print("  [Tab]      : Aceitar a correção sugerida")
+print("  [A]        : Ligar / desligar o corretor automático")
 print("  Os botões do vídeo também funcionam com o mouse.")
 print("  [Q]        : Sair")
 
@@ -226,6 +249,7 @@ def do_action(name):
     """Ações dos atalhos de teclado e dos botões do HUD."""
     global show_help, show_history, AUTO_SPEAK, CONFIDENCE_THRESHOLD, active_model, is_fullscreen
     global recognized_text, last_seen_token, last_legend_update_time, hist_scroll
+    global autocorrect_on, suggestion
     if name == "help":
         show_help = not show_help
         print(f"Manual de atalhos: {'Aberto' if show_help else 'Fechado'}")
@@ -261,16 +285,30 @@ def do_action(name):
         if recognized_text and not recognized_text.endswith(" "):
             recognized_text += " "
             last_legend_update_time = now_seconds
+            suggestion = check_last_word(recognized_text)
     elif name == "hist":
         show_history = not show_history
         hist_scroll = 0
+    elif name == "accept":
+        if suggestion_still_valid(recognized_text, suggestion):
+            start, word, fix = suggestion
+            recognized_text = recognized_text[:start] + fix + recognized_text[start + len(word):]
+            print(f"Correção aceita: '{word}' -> '{fix}'")
+        suggestion = None
+    elif name == "dismiss":
+        suggestion = None
+    elif name == "autocorrect":
+        autocorrect_on = not autocorrect_on
+        suggestion = None
+        print(f"Corretor automático: {'ligado' if autocorrect_on else 'desligado'}")
     elif name == "full":
         is_fullscreen = not is_fullscreen
         cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN,
                               cv2.WINDOW_FULLSCREEN if is_fullscreen else cv2.WINDOW_NORMAL)
 
 
-ACTIONS = {"help", "speak", "model", "voice", "thr+", "thr-", "clear", "del", "space", "hist", "full"}
+ACTIONS = {"help", "speak", "model", "voice", "thr+", "thr-", "clear", "del", "space", "hist", "full",
+           "accept", "dismiss", "autocorrect"}
 KEY_ACTIONS = {
     13: "speak", 10: "speak",
     ord('m'): "model", ord('M'): "model",
@@ -282,6 +320,8 @@ KEY_ACTIONS = {
     32: "space",
     ord('t'): "hist", ord('T'): "hist",
     ord('f'): "full", ord('F'): "full",
+    9: "accept",
+    ord('a'): "autocorrect", ord('A'): "autocorrect",
 }
 hist_scroll = 0
 fps, infer_ms, last_frame_time = 0.0, 0.0, 0.0
@@ -368,6 +408,8 @@ while cap.isOpened():
                         )
                         if text_updated:
                             last_legend_update_time = now_seconds
+                            if recognized_text.endswith(" "):  # sinal de espaço: fecha a palavra
+                                suggestion = check_last_word(recognized_text)
                         if last_seen_token == token:
                             hold_done_letter, hold_done_until = token, hold_now + 0.4
                             hold_candidate = None
@@ -383,6 +425,9 @@ while cap.isOpened():
     # Fala e limpeza automática por inatividade (apenas quando o modo automático estiver ativo)
     if AUTO_SPEAK and recognized_text and last_legend_update_time and (now_seconds - last_legend_update_time) >= LEGEND_CLEAR_SECONDS:
         speak_phrase()
+
+    if not suggestion_still_valid(recognized_text, suggestion):  # palavra apagada ou frase falada
+        suggestion = None
 
     # FPS para o rodapé do HUD
     frame_now = time.monotonic()
@@ -408,6 +453,8 @@ while cap.isOpened():
         stats=f"{fps:.0f} FPS · {infer_ms:.0f} ms",
         show_help=show_help,
         shortcuts=SHORTCUTS_DESKTOP,
+        autocorrect=autocorrect_on,
+        suggestion=(suggestion[1], suggestion[2]) if suggestion else None,
     )
     hud_regions = draw_hud(frame, hud_state)
     hist_scroll = hud_state.hist_scroll
@@ -441,9 +488,11 @@ while cap.isOpened():
         break
     elif key in (ord('h'), ord('H')):  # Alternar pop-up de ajuda
         do_action("help")
-    elif key == 27:  # Tecla ESC fecha a ajuda se estiver aberta
+    elif key == 27:  # Tecla ESC fecha a ajuda se estiver aberta, senão ignora a sugestão do corretor
         if show_help:
             do_action("help")
+        else:
+            do_action("dismiss")
     elif show_help:
         pass  # com o manual aberto, só H e Esc funcionam
     elif key in KEY_ACTIONS:
