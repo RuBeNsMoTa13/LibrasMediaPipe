@@ -65,7 +65,7 @@ SHORTCUTS_DESKTOP = [
     ("Espaço", "Inserir espaço entre palavras"),
     ("D / Backspace", "Apagar a última letra"),
     ("C", "Limpar a frase"),
-    ("Tab", "Aceitar a correção sugerida"),
+    ("Tab ou 1 / 2 / 3", "Aceitar a correção sugerida"),
     ("A", "Ligar ou desligar o corretor automático"),
     ("T", "Mostrar ou esconder o histórico"),
     ("F", "Tela cheia"),
@@ -91,7 +91,7 @@ class HudState:
     auto_seconds: int = 5
     stats: str = ""             # "30 FPS · 12 ms"
     autocorrect: bool = True    # corretor automático ligado (tecla A)
-    suggestion: tuple = None    # (palavra escrita, correção sugerida) esperando Tab ou o botão Aceitar
+    suggestion: tuple = None    # (palavra escrita, [até 3 correções]) esperando Tab, 1, 2, 3 ou clique
     show_help: bool = False
     shortcuts: list = field(default_factory=lambda: list(SHORTCUTS_DESKTOP))
 
@@ -320,14 +320,16 @@ def draw_hud(frame, st: HudState, accent=ACCENT):
     texts.add(fx + 14 + 18 + 7, ymid, "Falar", 15, DARK, True)
     regions.append(("speak", (fx, y1 + 6, fx + falar_w, y1 + 44)))
 
-    # --- Sugestão do corretor, logo acima da frase ---
+    # --- Sugestões do corretor, logo acima da frase: a primeira entra com Tab ---
     if st.suggestion:
-        typed, fix = st.suggestion
+        typed, fixes = st.suggestion
         lab_w = texts.width("corretor", 12, True)
         typed_w = texts.width(typed, 16)
-        fix_w = texts.width(fix, 17, True)
-        acc_w = texts.width("Aceitar · Tab", 13, True) + 24
-        sw_total = 14 + lab_w + 12 + typed_w + 10 + 16 + 10 + fix_w + 14 + acc_w + 6 + 28 + 6
+        options = []
+        for i, fix in enumerate(fixes[:3]):
+            key = "Tab" if i == 0 else str(i + 1)
+            options.append((fix, key, texts.width(fix, 15, True) + 8 + texts.width(key, 11, True) + 22))
+        sw_total = 14 + lab_w + 12 + typed_w + 10 + 16 + 12 + sum(o[2] + 6 for o in options) + 28 + 6
         sx1 = int((W - sw_total) / 2)
         sy1, sy2 = y1 - 8 - 40, y1 - 8
         smid = (sy1 + sy2) / 2
@@ -340,14 +342,15 @@ def draw_hud(frame, st: HudState, accent=ACCENT):
         x += typed_w + 10
         solids.append(lambda f, x=x: cv2.arrowedLine(f, (int(x), int(smid)), (int(x + 16), int(smid)), MUTED, 2,
                                                        cv2.LINE_AA, tipLength=0.4))
-        x += 16 + 10
-        texts.add(x, smid, fix, 17, accent, True)
-        x += fix_w + 14
-        ax = x
-        solids.append(lambda f: rrect(f, ax, sy1 + 6, ax + acc_w, sy2 - 6, 8, accent))
-        texts.add(ax + 12, smid, "Aceitar · Tab", 13, DARK, True)
-        regions.append(("accept", (ax, sy1 + 6, ax + acc_w, sy2 - 6)))
-        dx = ax + acc_w + 6
+        x += 16 + 12
+        for i, (fix, key, ow) in enumerate(options):
+            bg, fg, kc = (accent, DARK, DARK) if i == 0 else (BUTTON, TEXT, MUTED)
+            solids.append(lambda f, x=x, ow=ow, bg=bg: rrect(f, x, sy1 + 6, x + ow, sy2 - 6, 8, bg))
+            texts.add(x + 11, smid, fix, 15, fg, True)
+            texts.add(x + 11 + texts.width(fix, 15, True) + 8, smid + 1, key, 11, kc, True)
+            regions.append((f"accept{i}", (x, sy1 + 6, x + ow, sy2 - 6)))
+            x += ow + 6
+        dx = x
         solids.append(lambda f: rrect(f, dx, sy1 + 6, dx + 28, sy2 - 6, 8, BUTTON))
         solids.append(lambda f: draw_icon(f, "close", dx + 6, sy1 + 12, 16, TEXT))
         regions.append(("dismiss", (dx, sy1 + 6, dx + 28, sy2 - 6)))

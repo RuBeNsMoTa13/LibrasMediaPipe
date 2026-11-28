@@ -2,7 +2,8 @@
 
 Quando a pessoa termina uma palavra (espaço), o corretor procura na lista de palavras do
 português (web/palavras_pt.txt) a mais parecida. Ele não troca sozinho: o HUD mostra a
-sugestão e a pessoa aceita (Tab ou botão Aceitar) ou ignora.
+sugestão (até 3 opções) e a pessoa escolhe (Tab, 1, 2, 3 ou clique) ou ignora. A palavra
+anterior também conta: depois de "tudo", "bem" passa na frente (web/pares_pt.txt).
 
 A comparação ignora acentos, então "nao" vira "não". Também acha palavras com letras que
 têm movimento e ficam de fora do alfabeto reconhecido (H, J, K, X, Z), como "oje" -> "hoje".
@@ -11,7 +12,11 @@ import math
 import unicodedata
 from pathlib import Path
 
-WORDS_PATH = Path(__file__).resolve().parent.parent.parent / "web" / "palavras_pt.txt"
+WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
+WORDS_PATH = WEB_DIR / "palavras_pt.txt"
+PAIRS_PATH = WEB_DIR / "pares_pt.txt"
+MAX_SUGGESTIONS = 3
+PAIR_BONUS = 1.0  # quanto a palavra anterior ajuda: "tudo" + "bmel" prefere "bem" a "mel"
 
 
 def normalize(word):
@@ -48,36 +53,51 @@ def distance(a, b, limit):
     return prev[-1]
 
 
-class Corretor:
-    def __init__(self, path=WORDS_PATH):
-        self.words = {}  # palavra sem acento -> (grafia certa, posição na lista: menor = mais comum)
-        try:
-            lines = Path(path).read_text(encoding="utf-8").splitlines()
-        except OSError as e:
-            print("Aviso: corretor automático sem lista de palavras:", e)
-            lines = []
-        for line in lines:
-            word = line.strip()
-            if word and not word.startswith("#"):
-                self.words.setdefault(normalize(word), (word, len(self.words)))
+def _read_lines(path):
+    try:
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+    except OSError as e:
+        print("Aviso: corretor automático sem o arquivo", path, e)
+        return []
+    return [l.strip() for l in lines if l.strip() and not l.startswith("#")]
 
-    def suggest(self, word):
-        """Grafia sugerida para a palavra, ou None se ela já está certa ou não há nada parecido."""
+
+class Corretor:
+    def __init__(self, path=WORDS_PATH, pairs_path=PAIRS_PATH):
+        self.words = {}  # palavra sem acento -> (grafia certa, posição na lista: menor = mais comum)
+        for word in _read_lines(path):
+            self.words.setdefault(normalize(word), (word, len(self.words)))
+        # pares comuns, sem acento: "tudo bem" -> {("tudo", "bem")}
+        self.pairs = {tuple(normalize(p).split()[:2]) for p in _read_lines(pairs_path) if " " in p}
+
+    def suggest(self, word, previous=""):
+        """Até 3 grafias sugeridas, a melhor primeiro. Lista vazia se a palavra já está certa
+        ou não há nada parecido. previous é a palavra escrita antes dela, se houver."""
         key = normalize(word)
         if len(key) < 2 or not self.words:
-            return None
+            return []
+        prev = normalize(previous)
         if key in self.words:
+            # palavra existe: só sugere o acento ou um par comum bem parecido ("bom dai" -> "dia")
             right = self.words[key][0]
-            return right if right != word.lower() else None  # só falta o acento
-        limit = 1 if len(key) <= 4 else 2
-        best = None
+            out = [right] if right != word.lower() else []
+            for first, second in self.pairs:
+                if first == prev and second != key and distance(key, second, 1) <= 1:
+                    out.insert(0, self.words.get(second, (second,))[0])
+            return out[:MAX_SUGGESTIONS]
+        limit = 1 if len(key) <= 3 else 2
+        found = []
         for other, (right, rank) in self.words.items():
             if len(key) - len(other) > limit or len(other) - len(key) > 2 * limit:
                 continue
             d = distance(key, other, limit)
+            if d > limit:
+                continue
             # menos edições primeiro; entre as parecidas, a mais comum, com um pouco de preferência
-            # pelo mesmo tamanho (letras trocadas de lugar)
+            # pelo mesmo tamanho (letras trocadas de lugar) e pelo par com a palavra anterior
             score = d + 0.12 * math.log10(rank + 1) + 0.1 * abs(len(other) - len(key))
-            if d <= limit and (best is None or score < best[0]):
-                best = (score, right)
-        return best[1] if best else None
+            if (prev, other) in self.pairs:
+                score -= PAIR_BONUS
+            found.append((score, right))
+        found.sort()
+        return [right for _, right in found[:MAX_SUGGESTIONS]]

@@ -91,7 +91,7 @@ const SHORTCUTS = [
   ["Espaço", "Inserir espaço entre palavras"],
   ["D / Backspace", "Apagar a última letra"],
   ["C", "Limpar a frase"],
-  ["Tab", "Aceitar a correção sugerida"],
+  ["Tab ou 1 / 2 / 3", "Aceitar a correção sugerida"],
   ["A", "Ligar ou desligar o corretor automático"],
   ["T", "Mostrar ou esconder o histórico"],
   ["F", "Tela cheia"],
@@ -122,9 +122,12 @@ let lastVideoTime = -1, frames = 0, fpsT0 = performance.now(), inferMs = 0, fps 
 let regions = [];                  // áreas clicáveis do último quadro: [nome, x1, y1, x2, y2]
 
 // ---------- Corretor automático (mesmo algoritmo de src/desktop/corretor.py) ----------
-// Ao terminar uma palavra (espaço), sugere a palavra do português mais parecida; Tab ou o botão aceita.
+// Ao terminar uma palavra (espaço), sugere até 3 palavras do português parecidas; Tab, 1, 2, 3 ou clique escolhe.
+// A palavra anterior também conta: depois de "tudo", "bem" passa na frente (pares_pt.txt).
 let autocorrectOn = true;
-let suggestion = null;             // { start, word, fix } esperando Tab
+let suggestion = null;             // { start, word, fixes } esperando a escolha
+const PAIRS = new Set();           // "tudo bem", sem acento
+const MAX_SUGGESTIONS = 3, PAIR_BONUS = 1.0;
 const WORDS = new Map();           // palavra sem acento -> [grafia certa, posição: menor = mais comum]
 const MISSING_LETTERS = new Set("hjkxz"); // letras com movimento, fora do alfabeto: faltar uma custa meia edição
 const normalize = (w) => w.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -134,6 +137,12 @@ fetch("palavras_pt.txt").then((r) => r.ok ? r.text() : Promise.reject(r.status))
     if (w && !w.startsWith("#") && !WORDS.has(normalize(w))) WORDS.set(normalize(w), [w, WORDS.size]);
   }
 }).catch((e) => console.warn("Corretor sem lista de palavras:", e));
+fetch("pares_pt.txt").then((r) => r.ok ? r.text() : Promise.reject(r.status)).then((t) => {
+  for (const line of t.split("\n")) {
+    const p = normalize(line.trim()).split(/\s+/);
+    if (!line.startsWith("#") && p.length >= 2) PAIRS.add(p[0] + " " + p[1]);
+  }
+}).catch((e) => console.warn("Corretor sem pares de palavras:", e));
 
 function editDistance(a, b, limit) {
   let prev2 = null, prev = [0];
@@ -154,37 +163,49 @@ function editDistance(a, b, limit) {
   return prev[b.length];
 }
 
-function suggest(word) {
-  const key = normalize(word);
-  if (key.length < 2 || !WORDS.size) return null;
-  if (WORDS.has(key)) { const right = WORDS.get(key)[0]; return right !== word.toLowerCase() ? right : null; }
-  const limit = key.length <= 4 ? 1 : 2;
-  let best = null;
+function suggest(word, previous = "") {
+  const key = normalize(word), prev = normalize(previous);
+  if (key.length < 2 || !WORDS.size) return [];
+  if (WORDS.has(key)) {
+    // palavra existe: só sugere o acento ou um par comum bem parecido ("bom dai" -> "dia")
+    const right = WORDS.get(key)[0];
+    const out = right !== word.toLowerCase() ? [right] : [];
+    for (const pair of PAIRS) {
+      const [first, second] = pair.split(" ");
+      if (first === prev && second !== key && editDistance(key, second, 1) <= 1) out.unshift(WORDS.get(second)?.[0] ?? second);
+    }
+    return out.slice(0, MAX_SUGGESTIONS);
+  }
+  const limit = key.length <= 3 ? 1 : 2;
+  const found = [];
   for (const [other, [right, rank]] of WORDS) {
     if (key.length - other.length > limit || other.length - key.length > 2 * limit) continue;
     const d = editDistance(key, other, limit);
     if (d > limit) continue;
     // menos edições primeiro; entre as parecidas, a mais comum, com preferência pelo mesmo tamanho
-    const score = d + 0.12 * Math.log10(rank + 1) + 0.1 * Math.abs(other.length - key.length);
-    if (!best || score < best[0]) best = [score, right];
+    // e pelo par com a palavra anterior
+    let score = d + 0.12 * Math.log10(rank + 1) + 0.1 * Math.abs(other.length - key.length);
+    if (PAIRS.has(prev + " " + other)) score -= PAIR_BONUS;
+    found.push([score, right]);
   }
-  return best ? best[1] : null;
+  found.sort((x, y) => x[0] - y[0]);
+  return found.slice(0, MAX_SUGGESTIONS).map((f) => f[1]);
 }
 
 function checkLastWord() {
   const trimmed = text.trimEnd();
-  const word = trimmed.split(" ").pop();
+  const words = trimmed.split(" ");
+  const word = words[words.length - 1], previous = words.length > 1 ? words[words.length - 2] : "";
   if (!autocorrectOn || !word) return null;
-  const fix = suggest(word);
-  return fix ? { start: trimmed.length - word.length, word, fix } : null;
+  const fixes = suggest(word, previous);
+  return fixes.length ? { start: trimmed.length - word.length, word, fixes } : null;
 }
 const suggestionValid = () => suggestion && text.slice(suggestion.start, suggestion.start + suggestion.word.length) === suggestion.word;
 
-function acceptSuggestion() {
-  if (suggestionValid()) {
-    const { start, word, fix } = suggestion;
-    text = text.slice(0, start) + fix + text.slice(start + word.length);
-  }
+function acceptSuggestion(i = 0) {
+  if (!suggestionValid() || i >= suggestion.fixes.length) return;
+  const { start, word, fixes } = suggestion;
+  text = text.slice(0, start) + fixes[i] + text.slice(start + word.length);
   suggestion = null;
 }
 
@@ -295,7 +316,9 @@ const ACTIONS = {
   hist: () => { showHistory = !showHistory; histScroll = 0; },
   full: toggleFullscreen,
   model: () => {}, // na web só existe o .task
-  accept: acceptSuggestion,
+  accept0: () => acceptSuggestion(0),
+  accept1: () => acceptSuggestion(1),
+  accept2: () => acceptSuggestion(2),
   dismiss: () => { suggestion = null; },
   autocorrect: () => { autocorrectOn = !autocorrectOn; suggestion = null; },
 };
@@ -435,12 +458,15 @@ function drawComposer(progress) {
   txt("Falar", fx + 14 + 18 + 7, ym, 15, C.dark, true);
   regions.push(["speak", fx, y1 + 6, fx + falarW, y1 + 44]);
 
-  // Sugestão do corretor, logo acima da frase
+  // Sugestões do corretor, logo acima da frase: a primeira entra com Tab
   if (suggestion) {
-    const { word, fix } = suggestion;
-    const labW = width("corretor", 12, true), typedW = width(word, 16), fixW = width(fix, 17, true);
-    const accW = width("Aceitar · Tab", 13, true) + 24;
-    const sw = 14 + labW + 12 + typedW + 10 + 16 + 10 + fixW + 14 + accW + 6 + 28 + 6;
+    const { word, fixes } = suggestion;
+    const labW = width("corretor", 12, true), typedW = width(word, 16);
+    const options = fixes.slice(0, 3).map((fix, i) => {
+      const key = i === 0 ? "Tab" : String(i + 1);
+      return [fix, key, width(fix, 15, true) + 8 + width(key, 11, true) + 22];
+    });
+    const sw = 14 + labW + 12 + typedW + 10 + 16 + 12 + options.reduce((t, o) => t + o[2] + 6, 0) + 28 + 6;
     const sx1 = Math.round((W - sw) / 2), sy1 = y1 - 8 - 40, sy2 = y1 - 8, sm = (sy1 + sy2) / 2;
     rrect(sx1, sy1, sx1 + sw, sy2, 12, C.panel);
     let x = sx1 + 14;
@@ -450,15 +476,18 @@ function drawComposer(progress) {
     x += typedW + 10;
     ctx.strokeStyle = C.muted; ctx.lineWidth = 2; ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(x, sm); ctx.lineTo(x + 16, sm); ctx.moveTo(x + 10, sm - 5); ctx.lineTo(x + 16, sm); ctx.lineTo(x + 10, sm + 5); ctx.stroke();
-    x += 16 + 10;
-    txt(fix, x, sm, 17, C.accent, true); x += fixW + 14;
-    rrect(x, sy1 + 6, x + accW, sy2 - 6, 8, C.accent);
-    txt("Aceitar · Tab", x + 12, sm, 13, C.dark, true);
-    regions.push(["accept", x, sy1 + 6, x + accW, sy2 - 6]);
-    const dx = x + accW + 6;
-    rrect(dx, sy1 + 6, dx + 28, sy2 - 6, 8, C.button);
-    icon("close", dx + 6, sy1 + 12, 16, C.text);
-    regions.push(["dismiss", dx, sy1 + 6, dx + 28, sy2 - 6]);
+    x += 16 + 12;
+    options.forEach(([fix, key, ow], i) => {
+      const first = i === 0;
+      rrect(x, sy1 + 6, x + ow, sy2 - 6, 8, first ? C.accent : C.button);
+      txt(fix, x + 11, sm, 15, first ? C.dark : C.text, true);
+      txt(key, x + 11 + width(fix, 15, true) + 8, sm + 1, 11, first ? C.dark : C.muted, true);
+      regions.push([`accept${i}`, x, sy1 + 6, x + ow, sy2 - 6]);
+      x += ow + 6;
+    });
+    rrect(x, sy1 + 6, x + 28, sy2 - 6, 8, C.button);
+    icon("close", x + 6, sy1 + 12, 16, C.text);
+    regions.push(["dismiss", x, sy1 + 6, x + 28, sy2 - 6]);
   }
 }
 
@@ -626,7 +655,7 @@ canvas.addEventListener("wheel", (e) => {
 
 // Mesmos atalhos de teclado do app desktop
 const KEYS = { enter: "speak", v: "voice", "+": "thr+", "=": "thr+", "-": "thr-", "_": "thr-",
-  c: "clear", d: "del", backspace: "del", " ": "space", t: "hist", f: "full", tab: "accept", a: "autocorrect" };
+  c: "clear", d: "del", backspace: "del", " ": "space", t: "hist", f: "full", tab: "accept0", "1": "accept0", "2": "accept1", "3": "accept2", a: "autocorrect" };
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();

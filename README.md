@@ -250,7 +250,7 @@ As opções são `task`, `snn`, `rf` e `svm`. SNN, Random Forest e SVM usam os a
 | `Espaço` | Insere um espaço entre palavras |
 | `D` / `Backspace` | Apaga o último caractere |
 | `C` | Limpa o texto acumulado |
-| `Tab` | Aceita a correção que o corretor automático sugeriu |
+| `Tab` ou `1` / `2` / `3` | Aceita a correção que o corretor automático sugeriu (`Tab` e `1` pegam a primeira) |
 | `A` | Liga ou desliga o corretor automático |
 | `T` | Mostra ou esconde o histórico de frases faladas |
 | `F` | Tela cheia |
@@ -264,7 +264,7 @@ As opções são `task`, `snn`, `rf` e `svm`. SNN, Random Forest e SVM usam os a
 * embaixo, a frase sendo escrita, com os botões de espaço, apagar, limpar e Falar;
 * no rodapé, o modelo, o limiar (com os botões `−` e `+`), o modo de voz, o corretor e o FPS.
 
-**Corretor automático.** Quando uma palavra termina (espaço), o app procura a palavra do português mais parecida numa lista de 30 mil palavras (`web/palavras_pt.txt`, tirada do FrequencyWords, licença CC BY-SA 4.0). Se a palavra escrita não existe, aparece uma sugestão acima da frase, por exemplo `csaa → casa`, e ela só é trocada se a pessoa aceitar (`Tab` ou o botão Aceitar). `Esc` ou o X ignoram a sugestão, e a tecla `A` (ou a etiqueta do rodapé) desliga o corretor. A comparação ignora acentos (`nao` → `não`) e considera que H, J, K, X e Z não podem ser soletrados, por isso `oje` vira `hoje`. O código fica em `src/desktop/corretor.py` e é o mesmo na versão web.
+**Corretor automático.** Quando uma palavra termina (espaço), o app procura a palavra do português mais parecida numa lista de 30 mil palavras (`web/palavras_pt.txt`, tirada do FrequencyWords, licença CC BY-SA 4.0). Se a palavra escrita não existe, aparecem até 3 sugestões acima da frase, por exemplo `csaa → casa`, e ela só é trocada se a pessoa escolher uma (`Tab` para a primeira, `1`, `2`, `3` ou clique). A palavra anterior também conta: uma lista de pares comuns em conversa (`web/pares_pt.txt`, como "tudo bem" e "bom dia") faz "tudo bmel" sugerir "bem" antes de "mel". `Esc` ou o X ignoram a sugestão, e a tecla `A` (ou a etiqueta do rodapé) desliga o corretor. A comparação ignora acentos (`nao` → `não`) e considera que H, J, K, X e Z não podem ser soletrados, por isso `oje` vira `hoje`. O código fica em `src/desktop/corretor.py` e é o mesmo na versão web.
 
 Todos os botões funcionam com o mouse. O desenho fica em `src/desktop/hud.py` e é o mesmo da versão web.
 
