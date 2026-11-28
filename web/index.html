@@ -6,7 +6,7 @@
 <title>LIBRAS no Navegador</title>
 <style>
   /* Página escura, para combinar com o HUD (mesmo visual da janela do app desktop) */
-  :root { --bg: #0b0c0e; --card: #121417; --ink: #f5f5f5; --muted: #9ba0a5; --line: #2a3037; --accent: #00e5ff; }
+  :root { --bg: #0b0c0e; --card: #121417; --ink: #f5f5f5; --muted: #9ba0a5; --line: #2a3037; --accent: #38bdf8; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
          font: 16px/1.45 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
@@ -22,11 +22,10 @@
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
   button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink);
            padding: 7px 13px; border-radius: 8px; cursor: pointer; }
-  button.primary { background: #00a8bd; color: #001014; border-color: transparent; font-weight: 600; }
+  button.primary { background: #38bdf8; color: #0b0d10; border-color: transparent; font-weight: 600; }
   button:disabled { opacity: .5; cursor: default; }
-  label { color: var(--muted); }
-  input[type=range] { width: 160px; vertical-align: middle; accent-color: var(--accent); }
-  .stats { color: var(--muted); font-size: 13px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+  .hint { color: var(--muted); font-size: 14px; }
+  .stage canvas { cursor: default; }
 </style>
 </head>
 <body>
@@ -42,24 +41,15 @@
 
   <div class="row">
     <button class="primary" id="btnStart" disabled>Iniciar câmera</button>
-    <button id="btnSpace">Espaço</button>
-    <button id="btnDel">Apagar</button>
-    <button id="btnClear">Limpar</button>
-    <button id="btnSpeak">Falar (Enter)</button>
-    <button id="btnVoice">Modo de voz (V)</button>
-    <button id="btnHelp">Manual de atalhos (H)</button>
-    <button id="btnFull">Tela cheia</button>
-    <label for="thr" style="margin-left:8px">Limiar:</label>
-    <input type="range" id="thr" min="20" max="95" step="5" value="50">
+    <span class="hint">Use os botões em cima do vídeo ou o teclado. A tecla H mostra os atalhos.</span>
   </div>
-  <div class="stats" id="stats"></div>
 </main>
 
 <script type="module">
 import { FilesetResolver, GestureRecognizer }
   from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs";
 
-// Mesmos parâmetros e o mesmo HUD do app desktop (src/desktop/detectar_libras.py)
+// Mesmos parâmetros e o mesmo HUD do app desktop (src/desktop/detectar_libras.py e src/desktop/hud.py)
 // No Hugging Face Space estático só a pasta web/ é servida, então o modelo vem do endpoint "resolve" do repositório
 const MODEL_URL = location.hostname.endsWith(".hf.space")
   ? "https://huggingface.co/spaces/RubensMota13/LibrasMediaPipe/resolve/main/models/gesture_recognizer.task"
@@ -67,25 +57,26 @@ const MODEL_URL = location.hostname.endsWith(".hf.space")
 const LETTER_DELAY_MS = 700;       // intervalo mínimo entre letras
 const HOLD_MS = 1000;              // a letra precisa ficar estável por esse tempo para entrar na legenda
 const LEGEND_CLEAR_MS = 5000;      // modo automático: fala e limpa após esse tempo sem novos sinais
+const HISTORY_MAX = 50;            // frases guardadas no histórico
+const MAX_HIST_ROWS = 5;           // o cartão do histórico para de crescer aqui e passa a rolar
 let threshold = 0.50;
 let autoSpeak = false;             // false = manual (Enter), true = automático (pausa de 5 s)
 let showHelp = false;              // manual de atalhos aberto (pausa a digitação)
+let showHistory = true;            // histórico de frases no canto (tecla T)
+let history = [];                  // [{ text, hour }], a mais nova primeiro
+let histScroll = 0;
 
 // Tela em HD (1280x720), como a janela do desktop
-const W = 1280, H = 720;
+const W = 1280, H = 720, M = 14;
 
-// Paleta do desktop (lá em BGR, aqui convertida para RGB)
+// Mesma paleta do desktop (hud.py)
 const C = {
-  emerald: "#00e676", amber: "#ff9100", silver: "#cfd8dc", cyan: "#00e5ff",
-  gold: "#ffd700", yellow: "#ffee55", white: "#f5f5f5", muted: "#9ba0a5",
-  bar: "rgb(15,18,20)", barLine: "rgb(42,48,55)",
+  accent: "#38bdf8", green: "#34d399", amber: "#fbbf24", text: "#f2f4f7", soft: "#c3cad3",
+  muted: "#9aa3ae", panel: "rgba(12,14,18,0.65)", button: "rgba(255,255,255,0.12)",
+  track: "rgba(255,255,255,0.18)", line: "rgba(255,255,255,0.10)", dark: "#0b0d10", modal: "#14171c",
 };
-// Fontes do desktop: Segoe UI 30/22 negrito, 18/16 normal
 const FAMILY = '"Segoe UI", "Segoe UI Variable", system-ui, Arial, sans-serif';
-const F = {
-  largeBold: `bold 30px ${FAMILY}`, medBold: `bold 22px ${FAMILY}`,
-  med: `18px ${FAMILY}`, small: `16px ${FAMILY}`,
-};
+const font = (size, bold = false) => `${bold ? "bold " : ""}${size}px ${FAMILY}`;
 const CONNECTIONS = [
   [0, 1], [1, 2], [2, 3], [3, 4],        // Polegar
   [0, 5], [5, 6], [6, 7], [7, 8],        // Indicador
@@ -94,19 +85,31 @@ const CONNECTIONS = [
   [0, 17], [17, 18], [18, 19], [19, 20], // Mínimo
 ];
 const SHORTCUTS = [
-  ["[Enter]", "Falar legenda acumulada (voz) e limpar texto"],
-  ["[V]", "Alternar modo de voz (Manual <\u200c-\u200c> Automático)"],
-  ["[+] / [=]", "Aumentar limiar de confiança (+5%)"],
-  ["[-] / [_]", "Diminuir limiar de confiança (-5%)"],
-  ["[C]", "Limpar a legenda acumulada"],
-  ["[D/Backsp]", "Apagar o último caractere digitado"],
-  ["[Espaço]", "Inserir um espaço entre palavras"],
-  ["[H]", "Abrir / fechar este manual de atalhos"],
-  ["[Q]", "Parar a câmera"],
+  ["Enter", "Falar a frase e guardar no histórico"],
+  ["V", "Voz manual ou automática (fala após 5 s)"],
+  ["+ / −", "Aumentar ou diminuir o limiar (5%)"],
+  ["Espaço", "Inserir espaço entre palavras"],
+  ["D / Backspace", "Apagar a última letra"],
+  ["C", "Limpar a frase"],
+  ["T", "Mostrar ou esconder o histórico"],
+  ["F", "Tela cheia"],
+  ["H / Esc", "Abrir ou fechar este manual"],
+  ["Q", "Parar a câmera"],
 ];
+// Ícones (grade 24x24, os mesmos traços do desktop)
+const ICONS = {
+  speaker: "M11 5 6 9H3v6h3l5 4z M15.5 8.5a5 5 0 0 1 0 7 M18.5 5.5a9 9 0 0 1 0 13",
+  space: "M4 10v4h16v-4",
+  back: "M21 5H9l-6 7 6 7h12z M17 9l-5 6 M12 9l5 6",
+  trash: "M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13",
+  chat: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+  full: "M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5",
+  close: "M6 6l12 12 M18 6 6 18",
+};
+const ICON_PATHS = Object.fromEntries(Object.entries(ICONS).map(([k, d]) => [k, new Path2D(d)]));
 
 const $ = (id) => document.getElementById(id);
-const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d"), statsEl = $("stats");
+const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
 // Quadro espelhado na resolução da câmera: é ele que o modelo recebe, sem o HUD por cima
 const frameCanvas = document.createElement("canvas"), fctx = frameCanvas.getContext("2d");
 
@@ -114,6 +117,7 @@ let recognizer, delegate;
 let text = "", lastSeen = null, lastCommit = 0, lastUpdate = 0, stream = null;
 let cand = null, candStart = 0, doneLetter = null, doneUntil = 0; // letra sendo confirmada (barra de progresso)
 let lastVideoTime = -1, frames = 0, fpsT0 = performance.now(), inferMs = 0, fps = 0;
+let regions = [];                  // áreas clicáveis do último quadro: [nome, x1, y1, x2, y2]
 
 async function createRecognizer() {
   const fileset = await FilesetResolver.forVisionTasks(
@@ -171,16 +175,19 @@ function holdLetter(token, now) {
   return p;
 }
 
-function setThreshold(v) {
-  threshold = Math.min(0.95, Math.max(0.20, Math.round(v * 100) / 100));
-  $("thr").value = Math.round(threshold * 100);
-}
+function setThreshold(v) { threshold = Math.min(0.95, Math.max(0.20, Math.round(v * 100) / 100)); }
 
 function toggleHelp(open = !showHelp) { showHelp = open; }
 
+// Fala a frase, guarda no histórico e limpa (Enter, botão Falar ou modo automático)
 function speakAndClear() {
-  if (!text.trim()) return;
-  speak(text);
+  const phrase = text.trim();
+  if (!phrase) return;
+  speak(phrase);
+  const d = new Date();
+  history.unshift({ text: phrase, hour: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}` });
+  history.length = Math.min(history.length, HISTORY_MAX);
+  histScroll = 0;
   resetText();
 }
 
@@ -201,88 +208,226 @@ function speak(s) {
   speechSynthesis.speak(u);
 }
 
-// ---------- Desenho do HUD (mesmas posições, cores e textos do desktop) ----------
-function txt(s, x, y, font, color, align = "left") {
-  ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "top";
+function toggleFullscreen() {
+  const s = $("stage");
+  document.fullscreenElement ? document.exitFullscreen() : s.requestFullscreen?.();
+}
+
+// Ações dos atalhos de teclado e dos botões do HUD (as mesmas do desktop)
+const ACTIONS = {
+  help: () => toggleHelp(),
+  speak: speakAndClear,
+  voice: () => { autoSpeak = !autoSpeak; },
+  "thr+": () => setThreshold(threshold + 0.05),
+  "thr-": () => setThreshold(threshold - 0.05),
+  clear: resetText,
+  del: () => { if (text) { text = text.slice(0, -1); lastSeen = null; lastUpdate = performance.now(); } },
+  space: () => { if (text && !text.endsWith(" ")) { text += " "; lastUpdate = performance.now(); } },
+  hist: () => { showHistory = !showHistory; histScroll = 0; },
+  full: toggleFullscreen,
+  model: () => {}, // na web só existe o .task
+};
+
+// ---------- Desenho do HUD (mesmo desenho do desktop: src/desktop/hud.py) ----------
+function txt(s, x, y, size, color, bold = false, align = "left") {
+  ctx.font = font(size, bold); ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
   ctx.fillText(s, x, y);
+}
+const width = (s, size, bold = false) => { ctx.font = font(size, bold); return ctx.measureText(s).width; };
+function rrect(x1, y1, x2, y2, r, color) {
+  ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(x1, y1, x2 - x1, y2 - y1, r); ctx.fill();
+}
+function icon(name, x, y, size, color, lineWidth = 2) {
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(size / 24, size / 24);
+  ctx.strokeStyle = color; ctx.lineWidth = lineWidth * 24 / size; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.stroke(ICON_PATHS[name]);
+  ctx.restore();
+}
+function fitTail(s, size, maxW) {
+  if (width(s, size) <= maxW) return s;
+  while (s && width("…" + s, size) > maxW) s = s.slice(1);
+  return "…" + s;
+}
+function fitHead(s, size, maxW) {
+  if (width(s, size) <= maxW) return s;
+  while (s && width(s + "…", size) > maxW) s = s.slice(0, -1);
+  return s + "…";
 }
 
 function drawHand(lm) {
-  // Pontos verdes (raio 6) e depois as ligações azuis (espessura 3), na mesma ordem do desktop
-  ctx.fillStyle = "#00ff00";
-  for (const p of lm) { ctx.beginPath(); ctx.arc(p.x * W, p.y * H, 6, 0, 2 * Math.PI); ctx.fill(); }
-  ctx.strokeStyle = "#0000ff"; ctx.lineWidth = 3; ctx.lineCap = "round";
+  // Linhas claras e pontos na cor de destaque, como no desktop
+  ctx.strokeStyle = "rgb(225,225,225)"; ctx.lineWidth = 2; ctx.lineCap = "round";
   ctx.beginPath();
   for (const [a, b] of CONNECTIONS) { ctx.moveTo(lm[a].x * W, lm[a].y * H); ctx.lineTo(lm[b].x * W, lm[b].y * H); }
   ctx.stroke();
+  ctx.fillStyle = C.accent;
+  for (const p of lm) { ctx.beginPath(); ctx.arc(p.x * W, p.y * H, 5, 0, 2 * Math.PI); ctx.fill(); }
 }
 
-// Barra de progresso ao lado do "Sinal", na barra de cima: enche enquanto a mesma letra continua estável
-function drawProgress(x, progress, now) {
-  const done = doneLetter && now < doneUntil;
-  if (!cand && !done) return;
-  const bw = 180, bh = 14, by = 16;
-  const p = done ? 1 : progress, color = done ? C.emerald : C.cyan;
-  ctx.fillStyle = "rgb(42,48,55)";
-  ctx.beginPath(); ctx.roundRect(x, by, bw, bh, bh / 2); ctx.fill();
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.roundRect(x, by, Math.max(bh, bw * p), bh, bh / 2); ctx.fill();
-  ctx.strokeStyle = color; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.roundRect(x, by, bw, bh, bh / 2); ctx.stroke();
-}
-
-function drawTopBar(gesture, progress, now) {
-  const barH = 76;
-  ctx.fillStyle = C.bar; ctx.fillRect(0, 0, W, barH);
-  ctx.fillStyle = C.barLine; ctx.fillRect(0, barH, W, 1);
+function drawSignalCard(gesture, progress, now) {
   const thr = Math.round(threshold * 100);
-  let label = "Sinal: sem gesto", color = C.silver;
+  let letter = "–", status = "sem gesto", color = C.muted;
   if (gesture) {
-    const pct = (gesture.score * 100).toFixed(1);
-    if (gesture.score >= threshold) { label = `Sinal: ${gesture.name} (${pct}%) [OK]`; color = C.emerald; }
-    else { label = `Sinal: ${gesture.name} (${pct}%) [< ${thr}%]`; color = C.amber; }
+    letter = gesture.name.length === 1 ? gesture.name.toUpperCase() : gesture.name;
+    const pct = (gesture.score * 100).toFixed(0);
+    if (gesture.score >= threshold) { status = `${pct}% · OK`; color = C.green; }
+    else { status = `${pct}% · abaixo de ${thr}%`; color = C.amber; }
   }
-  txt(label, 20, 10, F.medBold, color);
-  if (!showHelp) { ctx.font = F.medBold; drawProgress(20 + ctx.measureText(label).width + 16, progress, now); }
-  txt(`Limiar: ${thr}% [+/-]`, W - 20, 10, F.medBold, C.cyan, "right");
-  txt(showHelp ? "MODO AJUDA ABERTO" : "Reconhecimento ativo  |  Modelo: MediaPipe .task", 20, 44, F.small, C.muted);
-  txt("[H] Manual de Atalhos  |  [C] Limpar  |  [Q] Sair", W - 20, 44, F.small, C.white, "right");
+  const lw = width(letter, 28, true), sw = width(status, 15, true);
+  const cw = Math.max(180, 12 + lw + 10 + sw + 14);
+  rrect(M, M, M + cw, M + 62, 10, C.panel);
+  txt(letter, M + 12, M + 26, 28, C.text, true);
+  txt(status, M + 12 + lw + 10, M + 27, 15, color, true);
+  const done = doneLetter && now < doneUntil;
+  const p = done ? 1 : (cand && !showHelp ? progress : 0);
+  const bx1 = M + 12, bx2 = M + cw - 12, by = M + 48;
+  rrect(bx1, by, bx2, by + 5, 2.5, C.track);
+  if (p > 0) rrect(bx1, by, bx1 + Math.max(5, (bx2 - bx1) * p), by + 5, 2.5, done ? C.green : C.accent);
 }
 
-function drawBottomBar() {
-  const barH = 86, y0 = H - barH;
-  ctx.fillStyle = C.bar; ctx.fillRect(0, y0, W, barH);
-  ctx.fillStyle = C.barLine; ctx.fillRect(0, y0, W, 1);
-  const voice = autoSpeak
-    ? [`Voz: [AUTO - fala em ${LEGEND_CLEAR_MS / 1000}s]  (tecle V p/ Manual)`, C.cyan]
-    : ["Voz: [MANUAL - tecle Enter p/ falar]  (tecle V p/ Auto)", C.gold];
-  txt(voice[0], 20, y0 + 10, F.small, voice[1]);
-  txt("[D/Backsp] Apagar letra  |  [Espaço] Espaço", W - 20, y0 + 10, F.small, C.muted, "right");
-  txt("Legenda:", 20, y0 + 42, F.largeBold, C.cyan);
-  ctx.font = F.largeBold;
-  const off = 20 + ctx.measureText("Legenda: ").width;
-  if (text) txt(text, off, y0 + 42, F.largeBold, C.yellow);
-  else txt("(aguardando sinal...)", off, y0 + 46, F.med, C.muted);
+function drawTopButtons() {
+  const size = 38;
+  ["full", "help", "hist"].forEach((name, i) => {
+    const x2 = W - M - i * (size + 6), x1 = x2 - size;
+    rrect(x1, M, x2, M + size, 10, C.panel);
+    regions.push([name, x1, M, x2, M + size]);
+    if (name === "full") icon("full", x1 + 10, M + 10, 18, C.text);
+    else if (name === "help") txt("?", x1 + size / 2, M + size / 2 + 1, 18, C.text, true, "center");
+    else icon("chat", x1 + 9, M + 9, 20, showHistory ? C.accent : C.text);
+  });
+}
+
+function drawHistory() {
+  const hw = 280, x2 = W - M, x1 = x2 - hw, y1 = M + 38 + 8;
+  const n = history.length;
+  histScroll = n > MAX_HIST_ROWS ? Math.max(0, Math.min(histScroll, n - MAX_HIST_ROWS)) : 0;
+  const visible = history.slice(histScroll, histScroll + MAX_HIST_ROWS);
+  const rowH = 44, rowsH = visible.length ? rowH * visible.length : 40, footH = n > MAX_HIST_ROWS ? 26 : 0;
+  const y2 = y1 + 32 + rowsH + footH + 6;
+  rrect(x1, y1, x2, y2, 14, C.panel);
+  regions.push(["histcard", x1, y1, x2, y2]);
+  txt("HISTÓRICO", x1 + 14, y1 + 18, 12, C.muted, true);
+  txt(`${n} frase${n === 1 ? "" : "s"}`, x2 - 14, y1 + 18, 12, C.muted, false, "right");
+  if (!visible.length) txt("As frases faladas aparecem aqui", x1 + 14, y1 + 52, 13, C.muted);
+  visible.forEach((item, i) => {
+    const ry = y1 + 32 + i * rowH;
+    ctx.fillStyle = C.line; ctx.fillRect(x1 + 10, ry, hw - 20, 1);
+    txt(fitHead(item.text, 15, hw - 64), x1 + 14, ry + 16, 15, C.text);
+    txt(item.hour, x1 + 14, ry + 33, 11, C.muted);
+    const rx = x2 - 10 - 32, rby = ry + 6;
+    rrect(rx, rby, rx + 32, rby + 32, 8, C.button);
+    icon("speaker", rx + 7, rby + 7, 18, C.soft);
+    regions.push([`repeat:${histScroll + i}`, rx, rby, rx + 32, rby + 32]);
+  });
+  if (footH) {
+    const fy = y1 + 32 + rowsH;
+    ctx.fillStyle = C.line; ctx.fillRect(x1 + 10, fy, hw - 20, 1);
+    txt(`${histScroll + 1}–${histScroll + visible.length} de ${n} · role para ver mais`, x1 + 14, fy + 14, 11, C.muted);
+  }
+}
+
+function drawComposer(progress) {
+  const candLetter = cand && !showHelp && cand.length === 1 ? cand : "";
+  let shown = text;
+  let areaW = 250;
+  if (shown || candLetter) {
+    shown = fitTail(shown, 22, 520);
+    areaW = Math.max(250, width(shown, 22) + width(candLetter, 22) + 4);
+  }
+  const falarW = 14 + 18 + 7 + width("Falar", 15, true) + 14;
+  const total = 18 + areaW + 10 + 3 * 34 + 2 * 6 + 8 + falarW + 7;
+  const x1 = Math.round((W - total) / 2), y1 = H - 40 - 50, y2 = H - 40, ym = (y1 + y2) / 2;
+  rrect(x1, y1, x1 + total, y2, 14, C.panel);
+  const tx = x1 + 18;
+  if (!shown && !candLetter) txt("faça um sinal para escrever", tx, ym, 17, C.muted);
+  else {
+    txt(shown, tx, ym, 22, C.text);
+    if (candLetter) {
+      const cx = tx + width(shown, 22), cw = Math.max(10, width(candLetter, 22));
+      txt(candLetter, cx, ym, 22, C.accent);
+      rrect(cx, ym + 13, cx + cw, ym + 16, 1.5, C.track);
+      rrect(cx, ym + 13, cx + Math.max(2, cw * progress), ym + 16, 1.5, C.accent);
+    }
+  }
+  let bx = x1 + 18 + areaW + 10;
+  for (const [name, ic] of [["space", "space"], ["del", "back"], ["clear", "trash"]]) {
+    rrect(bx, y1 + 8, bx + 34, y1 + 42, 8, C.button);
+    icon(ic, bx + 8, y1 + 16, 18, C.text);
+    regions.push([name, bx, y1 + 8, bx + 34, y1 + 42]);
+    bx += 34 + 6;
+  }
+  const fx = bx - 6 + 8;
+  rrect(fx, y1 + 6, fx + falarW, y1 + 44, 10, C.accent);
+  icon("speaker", fx + 14, y1 + 16, 18, C.dark);
+  txt("Falar", fx + 14 + 18 + 7, ym, 15, C.dark, true);
+  regions.push(["speak", fx, y1 + 6, fx + falarW, y1 + 44]);
+}
+
+function drawFooter() {
+  const y1 = H - 10 - 24, y2 = H - 10, ym = (y1 + y2) / 2;
+  let x = M;
+  const chip = (label, color = C.soft, region = null, bold = false) => {
+    const cw = width(label, 13, bold) + 20;
+    rrect(x, y1, x + cw, y2, 7, C.panel);
+    txt(label, x + 10, ym, 13, color, bold);
+    if (region) regions.push([region, x, y1, x + cw, y2]);
+    x += cw + 5;
+  };
+  chip("modelo .task");
+  chip("−", C.text, "thr-", true);
+  chip(`limiar ${Math.round(threshold * 100)}%`);
+  chip("+", C.text, "thr+", true);
+  if (autoSpeak) chip(`voz auto ${LEGEND_CLEAR_MS / 1000} s (V)`, C.accent, "voice");
+  else chip("voz manual (V)", C.soft, "voice");
+  const stats = `${fps.toFixed(0)} FPS · ${inferMs.toFixed(0)} ms · ${delegate}`;
+  const sw = width(stats, 13) + 20;
+  rrect(W - M - sw, y1, W - M, y2, 7, C.panel);
+  txt(stats, W - M - 10, ym, 13, C.soft, false, "right");
 }
 
 function drawHelpModal() {
-  ctx.fillStyle = "rgba(18,14,12,0.80)"; ctx.fillRect(0, 0, W, H);
-  const mw = Math.min(740, Math.floor(W * 0.90)), mh = Math.min(490, Math.floor(H * 0.88));
-  const x1 = Math.floor((W - mw) / 2), y1 = Math.floor((H - mh) / 2);
-  ctx.fillStyle = "rgb(18,20,24)"; ctx.fillRect(x1, y1, mw, mh);
-  ctx.strokeStyle = C.cyan; ctx.lineWidth = 2; ctx.strokeRect(x1, y1, mw, mh);
-  ctx.strokeStyle = "rgb(46,52,60)"; ctx.lineWidth = 1; ctx.strokeRect(x1 + 3.5, y1 + 3.5, mw - 7, mh - 7);
-  ctx.fillStyle = "rgb(60,65,70)";
-  ctx.fillRect(x1 + 20, y1 + 52, mw - 40, 1);
-  ctx.fillRect(x1 + 20, y1 + mh - 42, mw - 40, 1);
-  txt("MANUAL DE ATALHOS - LIBRAS", x1 + mw / 2, y1 + 12, F.largeBold, C.cyan, "center");
-  const spacing = Math.max(28, Math.floor((mh - 130) / SHORTCUTS.length));
+  ctx.fillStyle = "rgba(8,10,13,0.78)"; ctx.fillRect(0, 0, W, H);
+  const mw = 600, mh = 84 + SHORTCUTS.length * 32 + 44;
+  const x1 = (W - mw) / 2, y1 = (H - mh) / 2, x2 = x1 + mw, y2 = y1 + mh;
+  rrect(x1 - 1, y1 - 1, x2 + 1, y2 + 1, 20, "rgba(255,255,255,0.10)");
+  rrect(x1, y1, x2, y2, 20, C.modal);
+  txt("Atalhos de teclado", x1 + 28, y1 + 38, 24, C.text, true);
+  const cx1 = x2 - 24 - 38, cy1 = y1 + 19;
+  rrect(cx1, cy1, cx1 + 38, cy1 + 38, 10, C.button);
+  icon("close", cx1 + 10, cy1 + 10, 18, C.text);
   SHORTCUTS.forEach(([k, d], i) => {
-    const cy = y1 + 68 + i * spacing;
-    txt(k, x1 + 28, cy, F.medBold, C.gold);
-    txt(`: ${d}`, x1 + 160, cy, F.med, C.white);
+    const ry = y1 + 84 + i * 32 + 12;
+    txt(k, x1 + 28, ry, 16, C.accent, true);
+    txt(d, x1 + 28 + 160, ry, 16, C.text);
   });
-  txt("Pressione [H] ou [ESC] para retornar ao vídeo", x1 + mw / 2, y1 + mh - 32, F.small, C.muted, "center");
+  txt("O reconhecimento fica pausado enquanto o manual está aberto.", x1 + 28, y2 - 26, 13, C.muted);
+  regions = [["modal", x1, y1, x2, y2], ["close_help", cx1, cy1, cx1 + 38, cy1 + 38]];
+}
+
+function drawHud(gesture, progress, now) {
+  regions = [];
+  drawSignalCard(gesture, progress, now);
+  drawTopButtons();
+  if (showHistory) drawHistory();
+  drawComposer(progress);
+  drawFooter();
+  if (showHelp) drawHelpModal();
+}
+
+// Ponto do clique em coordenadas do canvas (1280x720), também em tela cheia (object-fit: contain)
+function canvasPoint(e) {
+  const r = canvas.getBoundingClientRect();
+  const scale = Math.min(r.width / W, r.height / H);
+  const ox = r.left + (r.width - W * scale) / 2, oy = r.top + (r.height - H * scale) / 2;
+  return [(e.clientX - ox) / scale, (e.clientY - oy) / scale];
+}
+function hit(x, y) {
+  for (let i = regions.length - 1; i >= 0; i--) {
+    const [name, x1, y1, x2, y2] = regions[i];
+    if (x >= x1 && x <= x2 && y >= y1 && y <= y2) return name;
+  }
+  return null;
 }
 
 function loop() {
@@ -326,15 +471,12 @@ function loop() {
     // Modo automático: fala e limpa a legenda após 5 s sem novos sinais (como no desktop)
     if (autoSpeak && text && lastUpdate && now - lastUpdate >= LEGEND_CLEAR_MS) speakAndClear();
 
-    drawTopBar(gesture, progress, now);
-    drawBottomBar();
-    if (showHelp) drawHelpModal();
+    drawHud(gesture, progress, now);
     frames++;
   }
   if (!stream) return; // câmera parada (Q)
   if (now - fpsT0 >= 500) {
     fps = frames * 1000 / (now - fpsT0);
-    statsEl.textContent = `${fps.toFixed(0)} FPS · inferência: ${inferMs.toFixed(1)} ms/frame · aceleração: ${delegate} · câmera ${frameCanvas.width}×${frameCanvas.height}`;
     frames = 0; fpsT0 = now;
   }
   requestAnimationFrame(loop);
@@ -359,31 +501,39 @@ async function startCamera() {
 }
 
 $("btnStart").onclick = startCamera;
-$("btnSpace").onclick = () => { if (text && !text.endsWith(" ")) { text += " "; lastUpdate = performance.now(); } };
-$("btnDel").onclick = () => { if (text) { text = text.slice(0, -1); lastSeen = null; lastUpdate = performance.now(); } };
-$("btnClear").onclick = resetText;
-$("btnSpeak").onclick = speakAndClear;
-$("btnVoice").onclick = () => { autoSpeak = !autoSpeak; };
-$("btnHelp").onclick = () => toggleHelp();
-$("btnFull").onclick = () => { const s = $("stage"); document.fullscreenElement ? document.exitFullscreen() : s.requestFullscreen?.(); };
-$("thr").oninput = (e) => setThreshold(e.target.value / 100);
+
+// Cliques nos botões desenhados no vídeo
+canvas.addEventListener("click", (e) => {
+  const target = hit(...canvasPoint(e));
+  if (showHelp) { if (target !== "modal") toggleHelp(false); return; }
+  if (!target) return;
+  if (target.startsWith("repeat:")) { const item = history[+target.slice(7)]; if (item) speak(item.text); }
+  else ACTIONS[target]?.();
+});
+canvas.addEventListener("mousemove", (e) => {
+  const target = hit(...canvasPoint(e));
+  canvas.style.cursor = target && target !== "histcard" && target !== "modal" ? "pointer" : "default";
+});
+// Rolagem do histórico com a roda do mouse
+canvas.addEventListener("wheel", (e) => {
+  const target = hit(...canvasPoint(e));
+  if (!target || !(target === "histcard" || target.startsWith("repeat:"))) return;
+  e.preventDefault();
+  histScroll = Math.max(0, histScroll + (e.deltaY > 0 ? 1 : -1));
+}, { passive: false });
 
 // Mesmos atalhos de teclado do app desktop
+const KEYS = { enter: "speak", v: "voice", "+": "thr+", "=": "thr+", "-": "thr-", "_": "thr-",
+  c: "clear", d: "del", backspace: "del", " ": "space", t: "hist", f: "full" };
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === "h") { toggleHelp(); return; }
   if (k === "escape") { if (showHelp) toggleHelp(false); return; }
   if (showHelp) return;
-  if (e.target.type === "range" && k.startsWith("arrow")) return;
-  if (k === " ") { e.preventDefault(); $("btnSpace").click(); }
-  else if (k === "backspace" || k === "d") { e.preventDefault(); $("btnDel").click(); }
-  else if (k === "c") $("btnClear").click();
-  else if (k === "enter") { e.preventDefault(); speakAndClear(); }
-  else if (k === "v") $("btnVoice").click();
-  else if (k === "+" || k === "=") setThreshold(threshold + 0.05);
-  else if (k === "-" || k === "_") setThreshold(threshold - 0.05);
-  else if (k === "q") stopCamera();
+  if (e.target.tagName === "BUTTON" && (k === " " || k === "enter")) return; // deixa o botão Iniciar funcionar
+  if (k === "q") { stopCamera(); return; }
+  if (KEYS[k]) { e.preventDefault(); ACTIONS[KEYS[k]](); }
 });
 
 try {

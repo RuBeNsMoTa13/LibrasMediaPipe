@@ -38,6 +38,8 @@ Código: [`src/desktop/detectar_libras.py`](../src/desktop/detectar_libras.py). 
 - [x] Síntese de voz assíncrona com `pyttsx3`, com fala manual pela tecla `Enter` e alternância pela tecla `V` para o modo automático, que fala e limpa a legenda depois de 5 segundos sem nova letra (`LEGEND_CLEAR_SECONDS = 5`).
 - [x] Pop-up do manual de atalhos aberto pela tecla `H` (e fechado com `H` ou `ESC`) na própria janela de vídeo. Enquanto ele está aberto, as letras não entram na legenda, mas a câmera e o reconhecimento continuam rodando.
 - [x] Interface desktop com janela redimensionável (`cv2.WINDOW_NORMAL`), tentativa de captura em HD (1280x720) e HUD em bandejas (barra superior e inferior) sem sobreposição de textos.
+- [x] HUD novo (28/11/2026), igual no desktop e na web: webcam em tela cheia e controles pequenos e semitransparentes por cima (cartão do sinal, frase com botões, rodapé com modelo, limiar e voz), botões clicáveis com o mouse, histórico das frases faladas com botão para ouvir de novo (tecla `T` mostra ou esconde) e tela cheia (`F`).
+- [ ] Corretor automático para as palavras soletradas, para não precisar apagar e escrever de novo uma letra errada.
 - [x] Tipografia TrueType (`Segoe UI` / `Arial`) com suporte a caracteres acentuados da língua portuguesa e paleta de cores de alto contraste para visibilidade a distância. As fontes são procuradas na pasta de fontes do Windows; em outro sistema, o app usa a fonte padrão do OpenCV, que não mostra acentos.
 
 ---

@@ -97,131 +97,40 @@ def speak_async(text: str):
 
     threading.Thread(target=worker, args=(text,), daemon=True).start()
 
-from PIL import Image, ImageDraw, ImageFont
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from hud import HudState, draw_hud, draw_hand, hit, SHORTCUTS_DESKTOP
 
-# --- SISTEMA DE TIPOGRAFIA MODERNA E PALETA DE ALTO CONTRASTE ---
-FONT_REGULAR_PATH = "C:/Windows/Fonts/segoeui.ttf"
-FONT_BOLD_PATH = "C:/Windows/Fonts/segoeuib.ttf"
-FONT_FALLBACK_PATH = "C:/Windows/Fonts/arial.ttf"
-FONT_FALLBACK_BOLD = "C:/Windows/Fonts/arialbd.ttf"
+# Nomes curtos dos modelos no rodapé do HUD
+MODEL_SHORT = {"task": ".task", "snn": "SNN", "rf": "RF", "svm": "SVM"}
+HAND_CONNECTIONS = [
+    (0, 1), (1, 2), (2, 3), (3, 4),  # Polegar
+    (0, 5), (5, 6), (6, 7), (7, 8),  # Indicador
+    (0, 9), (9, 10), (10, 11), (11, 12),  # Médio
+    (0, 13), (13, 14), (14, 15), (15, 16),  # Anelar
+    (0, 17), (17, 18), (18, 19), (19, 20)  # Mínimo
+]
+HISTORY_MAX = 50  # frases guardadas no histórico
 
-USE_PIL_FONT = False
-font_large_bold = None
-font_med_bold = None
-font_med = None
-font_small = None
-
-try:
-    bold_path = FONT_BOLD_PATH if Path(FONT_BOLD_PATH).exists() else FONT_FALLBACK_BOLD
-    reg_path = FONT_REGULAR_PATH if Path(FONT_REGULAR_PATH).exists() else FONT_FALLBACK_PATH
-    font_large_bold = ImageFont.truetype(bold_path, 30)
-    font_med_bold = ImageFont.truetype(bold_path, 22)
-    font_med = ImageFont.truetype(reg_path, 18)
-    font_small = ImageFont.truetype(reg_path, 16)
-    USE_PIL_FONT = True
-except Exception as e:
-    print("Aviso: Falha ao carregar fonte TrueType, utilizando fontes padrão OpenCV:", e)
-    USE_PIL_FONT = False
-
-# Cores vibrantes em formato BGR para máxima legibilidade
-COLOR_EMERALD = (118, 230, 0)      # Verde neon para sinais confirmados [OK]
-COLOR_AMBER   = (0, 145, 255)      # Laranja vivo para sinais abaixo do limiar
-COLOR_SILVER  = (220, 216, 207)    # Cinza prateado suave para "sem gesto"
-COLOR_CYAN    = (255, 229, 0)      # Ciano elétrico para limiar e destaques
-COLOR_GOLD    = (0, 215, 255)      # Dourado brilhante para modo manual / atalhos
-COLOR_YELLOW  = (85, 238, 255)     # Amarelo puro ultra visível para a legenda soletrada
-COLOR_WHITE   = (245, 245, 245)    # Branco gelo para textos e atalhos
-COLOR_MUTED   = (165, 160, 155)    # Cinza médio para textos secundários
+# Estado do HUD que não depende do modelo
+show_history = True
+history = []  # [(frase, "HH:MM")], a mais nova primeiro
+hud_regions = []  # áreas clicáveis do último quadro desenhado
+mouse_events = []  # cliques e rolagens do mouse esperando o próximo quadro
+is_fullscreen = False
 
 
-def draw_help_modal(frame):
-    """Desenha um pop-up modal centralizado e responsivo em HD com tipografia nítida."""
-    h, w = frame.shape[:2]
-    
-    # 1. Escurecer o fundo com transparência
-    overlay = frame.copy()
-    cv2.rectangle(overlay, (0, 0), (w, h), (12, 14, 18), -1)
-    cv2.addWeighted(overlay, 0.80, frame, 0.20, 0, frame)
+def on_mouse(event, x, y, flags, _param):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        mouse_events.append(("click", x, y, 0))
+    elif event == cv2.EVENT_MOUSEWHEEL:
+        mouse_events.append(("wheel", x, y, cv2.getMouseWheelDelta(flags)))
 
-    # 2. Caixa do modal centralizada e proporcional ao canvas HD
-    modal_w = min(740, int(w * 0.90))
-    modal_h = min(490, int(h * 0.88))
-    x1 = (w - modal_w) // 2
-    y1 = (h - modal_h) // 2
-    x2 = x1 + modal_w
-    y2 = y1 + modal_h
 
-    # Fundo do card
-    cv2.rectangle(frame, (x1, y1), (x2, y2), (24, 20, 18), -1)
-    # Borda externa ciano vibrante
-    cv2.rectangle(frame, (x1, y1), (x2, y2), COLOR_CYAN, 2)
-    # Borda interna sutil
-    cv2.rectangle(frame, (x1 + 3, y1 + 3), (x2 - 3, y2 - 3), (60, 52, 46), 1)
+def remember_phrase(text):
+    """Guarda a frase falada no topo do histórico."""
+    history.insert(0, (text, time.strftime("%H:%M")))
+    del history[HISTORY_MAX:]
 
-    # Linha divisória do cabeçalho
-    cv2.line(frame, (x1 + 20, y1 + 52), (x2 - 20, y1 + 52), (70, 65, 60), 1)
-    # Linha divisória inferior
-    cv2.line(frame, (x1 + 20, y2 - 42), (x2 - 20, y2 - 42), (70, 65, 60), 1)
-
-    shortcuts = [
-        ("[Enter]", "Falar legenda acumulada (TTS) e limpar texto"),
-        ("[V]", "Alternar modo de voz (Manual <-> Automático)"),
-        ("[M]", "Trocar o modelo de classificação (.task, SNN, RF, SVM)"),
-        ("[+] / [=]", "Aumentar limiar de confiança (+5%)"),
-        ("[-] / [_]", "Diminuir limiar de confiança (-5%)"),
-        ("[C]", "Limpar a legenda acumulada"),
-        ("[D/Backsp]", "Apagar o último caractere digitado"),
-        ("[Espaço]", "Inserir um espaço entre palavras"),
-        ("[H]", "Abrir / fechar este manual de atalhos"),
-        ("[Q]", "Fechar e sair da aplicação"),
-    ]
-
-    if USE_PIL_FONT:
-        # Renderização via Pillow em HD com Segoe UI e acentuação nativa
-        box_slice = frame[y1:y2, x1:x2]
-        pil_box = Image.fromarray(box_slice)
-        draw = ImageDraw.Draw(pil_box)
-
-        # Cabeçalho
-        title = "MANUAL DE ATALHOS - LIBRAS"
-        bbox_t = font_large_bold.getbbox(title)
-        tw = bbox_t[2] - bbox_t[0]
-        draw.text(((modal_w - tw) // 2, 12), title, font=font_large_bold, fill=COLOR_CYAN)
-
-        start_y = 68
-        line_spacing = max(28, int((modal_h - 130) / len(shortcuts)))
-        key_col_w = 160
-
-        for i, (key_label, desc) in enumerate(shortcuts):
-            cy = start_y + i * line_spacing
-            draw.text((28, cy), key_label, font=font_med_bold, fill=COLOR_GOLD)
-            draw.text((key_col_w, cy), f": {desc}", font=font_med, fill=COLOR_WHITE)
-
-        footer = "Pressione [H] ou [ESC] para retornar ao vídeo"
-        bbox_f = font_small.getbbox(footer)
-        fw = bbox_f[2] - bbox_f[0]
-        draw.text(((modal_w - fw) // 2, modal_h - 32), footer, font=font_small, fill=COLOR_MUTED)
-
-        frame[y1:y2, x1:x2] = np.asarray(pil_box)
-    else:
-        # Fallback OpenCV
-        title = "MANUAL DE ATALHOS - LIBRAS"
-        (tw, _), _ = cv2.getTextSize(title, cv2.FONT_HERSHEY_DUPLEX, 0.75, 2)
-        cv2.putText(frame, title, (x1 + (modal_w - tw) // 2, y1 + 36),
-                    cv2.FONT_HERSHEY_DUPLEX, 0.75, COLOR_CYAN, 2, cv2.LINE_AA)
-        start_y = y1 + 80
-        line_spacing = max(28, int((modal_h - 135) / len(shortcuts)))
-        key_col_w = 160
-        for i, (key_label, desc) in enumerate(shortcuts):
-            cy = start_y + i * line_spacing
-            cv2.putText(frame, key_label, (x1 + 25, cy),
-                        cv2.FONT_HERSHEY_DUPLEX, 0.55, COLOR_GOLD, 1, cv2.LINE_AA)
-            cv2.putText(frame, f": {desc}", (x1 + key_col_w, cy),
-                        cv2.FONT_HERSHEY_DUPLEX, 0.55, COLOR_WHITE, 1, cv2.LINE_AA)
-        footer = "Pressione [H] ou [ESC] para retornar ao video"
-        (fw, _), _ = cv2.getTextSize(footer, cv2.FONT_HERSHEY_DUPLEX, 0.50, 1)
-        cv2.putText(frame, footer, (x1 + (modal_w - fw) // 2, y2 - 16),
-                    cv2.FONT_HERSHEY_DUPLEX, 0.50, COLOR_MUTED, 1, cv2.LINE_AA)
 
 # Inicializar o reconhecedor de gestos
 base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
@@ -235,6 +144,7 @@ recognizer = vision.GestureRecognizer.create_from_options(options)
 WINDOW_NAME = 'LIBRAS - MediaPipe'
 cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
 cv2.resizeWindow(WINDOW_NAME, 1280, 720)
+cv2.setMouseCallback(WINDOW_NAME, on_mouse)
 
 # Iniciar a captura de vídeo
 cap = cv2.VideoCapture(0)
@@ -256,20 +166,10 @@ print("  [-] ou [_] : Diminuir limiar de confiança (-5%)")
 print("  [C]        : Limpar legenda acumulada")
 print("  [D/Backsp] : Apagar última letra")
 print("  [Espaço]   : Adicionar espaço")
+print("  [T]        : Mostrar / esconder o histórico de frases")
+print("  [F]        : Tela cheia")
+print("  Os botões do vídeo também funcionam com o mouse.")
 print("  [Q]        : Sair")
-
-
-def draw_hold_progress(frame, x, progress, now):
-    """Desenha, ao lado do "Sinal" na barra de cima, uma barra que enche enquanto a letra é confirmada."""
-    done = hold_done_letter is not None and now < hold_done_until
-    if hold_candidate is None and not done:
-        return
-    bw, bh, by = 180, 14, 16
-    p = 1.0 if done else progress
-    color = COLOR_EMERALD if done else COLOR_CYAN
-    cv2.rectangle(frame, (x, by), (x + bw, by + bh), (55, 48, 42), -1)
-    cv2.rectangle(frame, (x, by), (x + max(bh, int(bw * p)), by + bh), color, -1)
-    cv2.rectangle(frame, (x, by), (x + bw, by + bh), color, 2)
 
 
 def update_recognized_text(token, current_text, previous_seen, now_seconds, previous_commit_time):
@@ -303,6 +203,89 @@ def update_recognized_text(token, current_text, previous_seen, now_seconds, prev
 
     return current_text, normalized, previous_commit_time, False
 
+def speak_phrase():
+    """Fala a frase escrita, guarda no histórico e limpa a legenda (Enter, botão Falar ou modo automático)."""
+    global recognized_text, last_seen_token, last_legend_update_time, last_spoken_text
+    phrase = recognized_text.strip()
+    if not phrase:
+        print("Legenda vazia para falar.")
+        return
+    if USE_TTS:
+        speak_async(phrase)
+        print(f"Voz disparada: '{phrase}'")
+    else:
+        print(f"Texto da legenda: '{phrase}' (pyttsx3 não disponível)")
+    last_spoken_text = phrase
+    remember_phrase(phrase)
+    recognized_text = ""
+    last_seen_token = None
+    last_legend_update_time = 0.0
+
+
+def do_action(name):
+    """Ações dos atalhos de teclado e dos botões do HUD."""
+    global show_help, show_history, AUTO_SPEAK, CONFIDENCE_THRESHOLD, active_model, is_fullscreen
+    global recognized_text, last_seen_token, last_legend_update_time, hist_scroll
+    if name == "help":
+        show_help = not show_help
+        print(f"Manual de atalhos: {'Aberto' if show_help else 'Fechado'}")
+    elif name == "speak":
+        speak_phrase()
+    elif name == "model":
+        if len(available_models) == 1:
+            print("Só o MediaPipe .task está disponível: rode src/treino/treinar_modelos.py para treinar os outros.")
+        else:
+            active_model = available_models[(available_models.index(active_model) + 1) % len(available_models)]
+            last_seen_token = None
+            print(f"Classificador alternado para: {MODEL_NAMES[active_model]}")
+    elif name == "voice":
+        AUTO_SPEAK = not AUTO_SPEAK
+        mode_str = f"AUTOMÁTICO (fala após {LEGEND_CLEAR_SECONDS}s de inatividade)" if AUTO_SPEAK else "MANUAL (fala apenas ao teclar Enter)"
+        print(f"Modo de voz alternado para: {mode_str}")
+    elif name in ("thr+", "thr-"):
+        step = 0.05 if name == "thr+" else -0.05
+        CONFIDENCE_THRESHOLD = min(0.95, max(0.20, round(CONFIDENCE_THRESHOLD + step, 2)))
+        print(f"Limiar de confiança ajustado para: {int(CONFIDENCE_THRESHOLD * 100)}%")
+    elif name == "clear":
+        recognized_text = ""
+        last_seen_token = None
+        last_legend_update_time = 0.0
+        print("Legenda limpa manualmente.")
+    elif name == "del":
+        if recognized_text:
+            recognized_text = recognized_text[:-1]
+            last_seen_token = None
+            last_legend_update_time = now_seconds
+            print(f"Caractere apagado. Legenda atual: '{recognized_text}'")
+    elif name == "space":
+        if recognized_text and not recognized_text.endswith(" "):
+            recognized_text += " "
+            last_legend_update_time = now_seconds
+    elif name == "hist":
+        show_history = not show_history
+        hist_scroll = 0
+    elif name == "full":
+        is_fullscreen = not is_fullscreen
+        cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN,
+                              cv2.WINDOW_FULLSCREEN if is_fullscreen else cv2.WINDOW_NORMAL)
+
+
+ACTIONS = {"help", "speak", "model", "voice", "thr+", "thr-", "clear", "del", "space", "hist", "full"}
+KEY_ACTIONS = {
+    13: "speak", 10: "speak",
+    ord('m'): "model", ord('M'): "model",
+    ord('v'): "voice", ord('V'): "voice",
+    ord('+'): "thr+", ord('='): "thr+",
+    ord('-'): "thr-", ord('_'): "thr-",
+    ord('c'): "clear", ord('C'): "clear",
+    8: "del", ord('d'): "del", ord('D'): "del",
+    32: "space",
+    ord('t'): "hist", ord('T'): "hist",
+    ord('f'): "full", ord('F'): "full",
+}
+hist_scroll = 0
+fps, infer_ms, last_frame_time = 0.0, 0.0, 0.0
+
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
@@ -320,8 +303,10 @@ while cap.isOpened():
 
     now_seconds = timestamp / 1000.0
 
-    # Realizar a detecção
+    # Realizar a detecção (o tempo aparece no rodapé do HUD)
+    infer_start = time.perf_counter()
     result = recognizer.recognize_for_video(mp_image, timestamp)
+    infer_ms = infer_ms * 0.9 + (time.perf_counter() - infer_start) * 1000 * 0.1
 
     # Redimensionar o frame de exibição para alta definição HD (1280x720)
     # Isso evita serrilhamento de texto e garante linhas suaves de alta resolução
@@ -331,29 +316,9 @@ while cap.isOpened():
         frame = cv2.resize(frame, (DISPLAY_W, DISPLAY_H), interpolation=cv2.INTER_LINEAR)
     h, w = frame.shape[:2]
 
-    # Desenhar os landmarks da mão sobre o canvas HD
-    if result.hand_landmarks:
-        for hand_landmarks in result.hand_landmarks:
-            # Desenhar os pontos das articulações
-            for landmark in hand_landmarks:
-                x = int(landmark.x * w)
-                y = int(landmark.y * h)
-                cv2.circle(frame, (x, y), 6, (0, 255, 0), -1)
-            
-            # Desenhar as conexões dos dedos
-            connections = [
-                (0, 1), (1, 2), (2, 3), (3, 4),  # Polegar
-                (0, 5), (5, 6), (6, 7), (7, 8),  # Indicador
-                (0, 9), (9, 10), (10, 11), (11, 12),  # Médio
-                (0, 13), (13, 14), (14, 15), (15, 16),  # Anelar
-                (0, 17), (17, 18), (18, 19), (19, 20)  # Mínimo
-            ]
-            for start, end in connections:
-                x1 = int(hand_landmarks[start].x * w)
-                y1 = int(hand_landmarks[start].y * h)
-                x2 = int(hand_landmarks[end].x * w)
-                y2 = int(hand_landmarks[end].y * h)
-                cv2.line(frame, (x1, y1), (x2, y2), (255, 0, 0), 3)
+    # Desenhar o esqueleto da mão sobre o canvas HD
+    for hand_landmarks in result.hand_landmarks or []:
+        draw_hand(frame, hand_landmarks, HAND_CONNECTIONS)
 
     # Variáveis de estado do frame
     hold_now = time.monotonic()
@@ -417,181 +382,72 @@ while cap.isOpened():
 
     # Fala e limpeza automática por inatividade (apenas quando o modo automático estiver ativo)
     if AUTO_SPEAK and recognized_text and last_legend_update_time and (now_seconds - last_legend_update_time) >= LEGEND_CLEAR_SECONDS:
-        if USE_TTS and recognized_text and recognized_text != last_spoken_text:
-            speak_async(recognized_text)
-            last_spoken_text = recognized_text
-        recognized_text = ""
-        last_seen_token = None
-        last_legend_update_time = 0.0
+        speak_phrase()
 
-    threshold_percent = int(CONFIDENCE_THRESHOLD * 100)
+    # FPS para o rodapé do HUD
+    frame_now = time.monotonic()
+    if last_frame_time:
+        fps = fps * 0.9 + 0.1 / max(1e-3, frame_now - last_frame_time)
+    last_frame_time = frame_now
 
-    # --- 1. BARRA SUPERIOR UNIFICADA (HUD de Status e Controles) ---
-    top_bar_h = 76
-    cv2.rectangle(frame, (0, 0), (w, top_bar_h), (20, 18, 15), -1)
-    cv2.line(frame, (0, top_bar_h), (w, top_bar_h), (55, 48, 42), 1)
-
-    # Linha 1 Superior: Sinal à esquerda e Limiar à direita
-    if gesture_detected:
-        if score >= CONFIDENCE_THRESHOLD:
-            current_label = f"Sinal: {label} ({score*100:.1f}%) [OK]"
-            label_color = COLOR_EMERALD  # Verde neon vibrante
-        else:
-            current_label = f"Sinal: {label} ({score*100:.1f}%) [< {threshold_percent}%]"
-            label_color = COLOR_AMBER  # Laranja vivo
-    else:
-        current_label = "Sinal: sem gesto"
-        label_color = COLOR_SILVER
-
-    thresh_text = f"Limiar: {threshold_percent}% [+/-]"
-    model_name = MODEL_NAMES[active_model]
-    sub_left = f"Reconhecimento ativo  |  Modelo: {model_name} [M]" if not show_help else "MODO AJUDA ABERTO"
-    top_shortcuts = "[H] Manual de Atalhos  |  [C] Limpar  |  [Q] Sair"
-
-    if USE_PIL_FONT:
-        top_slice = frame[0:top_bar_h, 0:w]
-        pil_top = Image.fromarray(top_slice)
-        draw_top = ImageDraw.Draw(pil_top)
-
-        draw_top.text((20, 10), current_label, font=font_med_bold, fill=label_color)
-        bbox_lb = font_med_bold.getbbox(current_label)
-        progress_x = 20 + (bbox_lb[2] - bbox_lb[0]) + 16
-
-        bbox_th = font_med_bold.getbbox(thresh_text)
-        tw_th = bbox_th[2] - bbox_th[0]
-        draw_top.text((w - tw_th - 20, 10), thresh_text, font=font_med_bold, fill=COLOR_CYAN)
-
-        draw_top.text((20, 44), sub_left, font=font_small, fill=COLOR_MUTED)
-
-        bbox_sc = font_small.getbbox(top_shortcuts)
-        tw_sc = bbox_sc[2] - bbox_sc[0]
-        draw_top.text((w - tw_sc - 20, 44), top_shortcuts, font=font_small, fill=COLOR_WHITE)
-
-        frame[0:top_bar_h, 0:w] = np.asarray(pil_top)
-    else:
-        cv2.putText(frame, current_label, (20, 30), cv2.FONT_HERSHEY_DUPLEX, 0.75, label_color, 1, cv2.LINE_AA)
-        (tw_lb, _), _ = cv2.getTextSize(current_label, cv2.FONT_HERSHEY_DUPLEX, 0.75, 1)
-        progress_x = 20 + tw_lb + 16
-        (tw_thresh, _), _ = cv2.getTextSize(thresh_text, cv2.FONT_HERSHEY_DUPLEX, 0.65, 1)
-        cv2.putText(frame, thresh_text, (w - tw_thresh - 20, 30), cv2.FONT_HERSHEY_DUPLEX, 0.65, COLOR_CYAN, 1, cv2.LINE_AA)
-        cv2.putText(frame, sub_left, (20, 60), cv2.FONT_HERSHEY_DUPLEX, 0.50, COLOR_MUTED, 1, cv2.LINE_AA)
-        (tw_sc, _), _ = cv2.getTextSize(top_shortcuts, cv2.FONT_HERSHEY_DUPLEX, 0.52, 1)
-        cv2.putText(frame, top_shortcuts, (w - tw_sc - 20, 60), cv2.FONT_HERSHEY_DUPLEX, 0.52, COLOR_WHITE, 1, cv2.LINE_AA)
-
-    # Barra de progresso ao lado do "Sinal" enquanto a letra está sendo confirmada
-    if not show_help:
-        draw_hold_progress(frame, progress_x, hold_progress, hold_now)
-
-    # --- 2. BARRA INFERIOR UNIFICADA (Voz e Legenda Acumulada) ---
-    bottom_bar_h = 86
-    bottom_y_start = h - bottom_bar_h
-    cv2.rectangle(frame, (0, bottom_y_start), (w, h), (20, 18, 15), -1)
-    cv2.line(frame, (0, bottom_y_start), (w, bottom_y_start), (55, 48, 42), 1)
-
-    if AUTO_SPEAK:
-        voice_status = f"Voz: [AUTO - fala em {LEGEND_CLEAR_SECONDS}s]  (tecle V p/ Manual)"
-        voice_color = COLOR_CYAN
-    else:
-        voice_status = "Voz: [MANUAL - tecle Enter p/ falar]  (tecle V p/ Auto)"
-        voice_color = COLOR_GOLD
-
-    edit_hints = "[D/Backsp] Apagar letra  |  [Espaço] Espaço"
-
-    if USE_PIL_FONT:
-        bot_slice = frame[bottom_y_start:h, 0:w]
-        pil_bot = Image.fromarray(bot_slice)
-        draw_bot = ImageDraw.Draw(pil_bot)
-
-        draw_bot.text((20, 10), voice_status, font=font_small, fill=voice_color)
-
-        bbox_eh = font_small.getbbox(edit_hints)
-        tw_eh = bbox_eh[2] - bbox_eh[0]
-        draw_bot.text((w - tw_eh - 20, 10), edit_hints, font=font_small, fill=COLOR_MUTED)
-
-        # Legenda com grande destaque
-        draw_bot.text((20, 42), "Legenda:", font=font_large_bold, fill=COLOR_CYAN)
-        bbox_leg = font_large_bold.getbbox("Legenda: ")
-        leg_offset = 20 + (bbox_leg[2] - bbox_leg[0])
-        if recognized_text:
-            draw_bot.text((leg_offset, 42), recognized_text, font=font_large_bold, fill=COLOR_YELLOW)
-        else:
-            draw_bot.text((leg_offset, 46), "(aguardando sinal...)", font=font_med, fill=COLOR_MUTED)
-
-        frame[bottom_y_start:h, 0:w] = np.asarray(pil_bot)
-    else:
-        cv2.putText(frame, voice_status, (20, h - 50), cv2.FONT_HERSHEY_DUPLEX, 0.55, voice_color, 1, cv2.LINE_AA)
-        (tw_eh, _), _ = cv2.getTextSize(edit_hints, cv2.FONT_HERSHEY_DUPLEX, 0.50, 1)
-        cv2.putText(frame, edit_hints, (w - tw_eh - 20, h - 50), cv2.FONT_HERSHEY_DUPLEX, 0.50, COLOR_MUTED, 1, cv2.LINE_AA)
-        cv2.putText(frame, "Legenda: ", (20, h - 16), cv2.FONT_HERSHEY_DUPLEX, 0.85, COLOR_CYAN, 2, cv2.LINE_AA)
-        (leg_tw, _), _ = cv2.getTextSize("Legenda: ", cv2.FONT_HERSHEY_DUPLEX, 0.85, 2)
-        if recognized_text:
-            cv2.putText(frame, recognized_text, (20 + leg_tw, h - 16), cv2.FONT_HERSHEY_DUPLEX, 0.90, COLOR_YELLOW, 2, cv2.LINE_AA)
-        else:
-            cv2.putText(frame, "(aguardando sinal...)", (20 + leg_tw, h - 16), cv2.FONT_HERSHEY_DUPLEX, 0.70, COLOR_MUTED, 1, cv2.LINE_AA)
-
-    # Desenhar o pop-up do Manual de Atalhos sobre o frame se ativado
-    if show_help:
-        draw_help_modal(frame)
+    # --- HUD: webcam em tela cheia e controles pequenos por cima (igual à versão web) ---
+    hud_state = HudState(
+        letter=(label.upper() if len(label) == 1 else label) if gesture_detected else None,
+        score=score,
+        threshold=CONFIDENCE_THRESHOLD,
+        holding=hold_candidate is not None and not show_help,
+        hold_progress=hold_progress,
+        done=hold_done_letter is not None and hold_now < hold_done_until,
+        text=recognized_text,
+        history=history,
+        show_history=show_history,
+        hist_scroll=hist_scroll,
+        model_name=MODEL_SHORT[active_model],
+        auto_speak=AUTO_SPEAK,
+        auto_seconds=LEGEND_CLEAR_SECONDS,
+        stats=f"{fps:.0f} FPS · {infer_ms:.0f} ms",
+        show_help=show_help,
+        shortcuts=SHORTCUTS_DESKTOP,
+    )
+    hud_regions = draw_hud(frame, hud_state)
+    hist_scroll = hud_state.hist_scroll
 
     # Exibir o vídeo na janela responsiva
     cv2.imshow(WINDOW_NAME, frame)
 
     key = cv2.waitKey(1) & 0xFF
+    if cv2.getWindowProperty(WINDOW_NAME, cv2.WND_PROP_VISIBLE) < 1:
+        break  # janela fechada no X
+
+    # Cliques e rolagem do mouse nos botões do HUD
+    while mouse_events:
+        kind, mx, my, delta = mouse_events.pop(0)
+        target = hit(hud_regions, mx, my)
+        if kind == "wheel":
+            if target is not None and (target == "histcard" or isinstance(target, tuple)):
+                hist_scroll = max(0, hist_scroll + (1 if delta < 0 else -1))
+        elif show_help:
+            if target != "modal":
+                do_action("help")  # clique no X ou fora do manual fecha
+        elif isinstance(target, tuple) and target[0] == "repeat":
+            if target[1] < len(history):
+                phrase = history[target[1]][0]
+                print(f"Repetindo: '{phrase}'")
+                speak_async(phrase)
+        elif target in ACTIONS:
+            do_action(target)
+
     if key == ord('q'):
         break
     elif key in (ord('h'), ord('H')):  # Alternar pop-up de ajuda
-        show_help = not show_help
-        print(f"Manual de atalhos: {'Aberto' if show_help else 'Fechado'}")
+        do_action("help")
     elif key == 27:  # Tecla ESC fecha a ajuda se estiver aberta
         if show_help:
-            show_help = False
-            print("Manual de atalhos fechado.")
-    elif key in (13, 10):  # Tecla Enter (aciona fala manual da legenda)
-        if recognized_text:
-            if USE_TTS:
-                speak_async(recognized_text)
-                last_spoken_text = recognized_text
-                print(f"Voz disparada (Enter): '{recognized_text}'")
-            else:
-                print(f"Texto da legenda: '{recognized_text}' (pyttsx3 não disponível)")
-            recognized_text = ""
-            last_seen_token = None
-            last_legend_update_time = 0.0
-        else:
-            print("Legenda vazia para falar.")
-    elif key in (ord('m'), ord('M')):  # Passar para o próximo classificador disponível
-        if len(available_models) == 1:
-            print("Só o MediaPipe .task está disponível: rode src/treino/treinar_modelos.py para treinar os outros.")
-        else:
-            next_index = (available_models.index(active_model) + 1) % len(available_models)
-            active_model = available_models[next_index]
-            last_seen_token = None
-            print(f"Classificador alternado para: {MODEL_NAMES[active_model]}")
-    elif key in (ord('v'), ord('V')):  # Alternar entre modo Manual e Automático
-        AUTO_SPEAK = not AUTO_SPEAK
-        mode_str = f"AUTOMÁTICO (fala após {LEGEND_CLEAR_SECONDS}s de inatividade)" if AUTO_SPEAK else "MANUAL (fala apenas ao teclar Enter)"
-        print(f"Modo de voz alternado para: {mode_str}")
-    elif key in (ord('+'), ord('=')):
-        CONFIDENCE_THRESHOLD = min(0.95, round(CONFIDENCE_THRESHOLD + 0.05, 2))
-        print(f"Limiar de confiança ajustado para: {int(CONFIDENCE_THRESHOLD * 100)}%")
-    elif key in (ord('-'), ord('_')):
-        CONFIDENCE_THRESHOLD = max(0.20, round(CONFIDENCE_THRESHOLD - 0.05, 2))
-        print(f"Limiar de confiança ajustado para: {int(CONFIDENCE_THRESHOLD * 100)}%")
-    elif key in (ord('c'), ord('C')):
-        recognized_text = ""
-        last_seen_token = None
-        last_legend_update_time = 0.0
-        print("Legenda limpa manualmente.")
-    elif key == 8 or key in (ord('d'), ord('D')):  # Backspace ou 'd' para apagar
-        if recognized_text:
-            recognized_text = recognized_text[:-1]
-            last_seen_token = None
-            last_legend_update_time = now_seconds
-            print(f"Caractere apagado. Legenda atual: '{recognized_text}'")
-    elif key == 32:  # Barra de espaço
-        if recognized_text and not recognized_text.endswith(" "):
-            recognized_text += " "
-            last_legend_update_time = now_seconds
+            do_action("help")
+    elif show_help:
+        pass  # com o manual aberto, só H e Esc funcionam
+    elif key in KEY_ACTIONS:
+        do_action(KEY_ACTIONS[key])
 
 cap.release()
 cv2.destroyAllWindows()
